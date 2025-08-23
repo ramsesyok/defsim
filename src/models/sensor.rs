@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use crate::models::{
     traits::{IAgent, ISensor},
     common::{Position3D, AgentStatus},
@@ -34,15 +34,11 @@ pub enum DetectionEventType {
 }
 
 impl Sensor {
-    pub fn new(
-        id: String,
-        position: Position3D,
-        detection_range: f64,
-    ) -> Self {
+    pub fn new(id: String, position: Position3D) -> Self {
         Self {
             id,
             position,
-            detection_range,
+            detection_range: 0.0,               // initializeで設定
             status: AgentStatus::Active,
             detected_targets: HashSet::new(),
             detection_history: Vec::new(),
@@ -159,9 +155,20 @@ impl Sensor {
         self.detection_history.clear();
     }
 
+
+    /// 検知済みターゲットIDのリストを取得
+    pub fn get_detected_targets(&self) -> Vec<String> {
+        self.detected_targets.iter().cloned().collect()
+    }
+
     /// 検知範囲内かどうかの判定
     pub fn is_in_detection_range(&self, position: Position3D) -> bool {
         self.position.distance_3d(&position) <= self.detection_range
+    }
+
+    /// ターゲット検知の更新（シミュレーションエンジン用）
+    pub fn update_detections(&mut self, targets: &[Target], current_time: f64) {
+        self.detect_targets(targets, current_time);
     }
 }
 
@@ -175,10 +182,32 @@ pub struct DetectionStats {
 }
 
 impl IAgent for Sensor {
-    fn initialize(&mut self) {
+    fn initialize(&mut self, scenario_config: &crate::scenario::ScenarioConfig) {
         self.status = AgentStatus::Active;
         self.detected_targets.clear();
         self.detection_history.clear();
+        
+        // シナリオからセンサー設定を探して適用
+        for sensor_config in &scenario_config.friendly_forces.sensors {
+            if sensor_config.id == self.id {
+                self.detection_range = sensor_config.range_m;
+                break;
+            }
+        }
+        
+        // 距離測定方式の設定
+        let distance_convention = &scenario_config.world.distance_conventions.sensor;
+        match distance_convention.as_str() {
+            "3D" => {
+                // 3D距離での検知（デフォルト）
+            },
+            "XY" => {
+                // XY平面距離での検知
+            },
+            _ => {
+                // デフォルト
+            }
+        }
     }
 
     fn tick(&mut self, dt: f64) {

@@ -37,33 +37,23 @@ pub struct Launcher {
 }
 
 impl Launcher {
-    pub fn new(
-        id: String,
-        position: Position3D,
-        max_missiles: u32,
-        cooldown_time: f64,
-        missile_initial_speed: f64,
-        missile_max_speed: f64,
-        missile_max_accel: f64,
-        missile_max_turn_rate: f64,
-        missile_intercept_radius: f64,
-    ) -> Self {
+    pub fn new(id: String, position: Position3D) -> Self {
         Self {
             id,
             position,
             status: AgentStatus::Active,
-            max_missiles,
-            current_missiles: max_missiles, // 初期状態で満載
-            cooldown_time,
-            cooldown_remaining: 0.0, // 初期状態でクールダウン済み
+            max_missiles: 0,                    // initializeで設定
+            current_missiles: 0,                // initializeで設定
+            cooldown_time: 0.0,                 // initializeで設定
+            cooldown_remaining: 0.0,            // initializeで設定
             launch_queue: VecDeque::new(),
             launch_history: Vec::new(),
             missile_counter: 0,
-            missile_initial_speed,
-            missile_max_speed,
-            missile_max_accel,
-            missile_max_turn_rate,
-            missile_intercept_radius,
+            missile_initial_speed: 0.0,         // initializeで設定
+            missile_max_speed: 0.0,             // initializeで設定
+            missile_max_accel: 0.0,             // initializeで設定
+            missile_max_turn_rate: 0.0,         // initializeで設定
+            missile_intercept_radius: 0.0,      // initializeで設定
         }
     }
 
@@ -82,11 +72,6 @@ impl Launcher {
             missile_id.clone(),
             self.position,
             target_id.clone(),
-            self.missile_initial_speed,
-            self.missile_max_speed,
-            self.missile_max_accel,
-            self.missile_max_turn_rate,
-            self.missile_intercept_radius,
         );
 
         // ランチャー状態更新
@@ -136,6 +121,38 @@ impl Launcher {
     /// 満載まで再装填
     pub fn reload_full(&mut self) {
         self.current_missiles = self.max_missiles;
+    }
+
+
+    /// ミサイル発射（シミュレーションエンジン用）
+    pub fn fire_missile_at_target(&mut self, target_id: &str) -> Option<Missile> {
+        // 直接Missileを作成して返す
+        if !self.can_launch() {
+            return None;
+        }
+
+        // ミサイルを発射
+        self.current_missiles -= 1;
+        self.cooldown_remaining = self.cooldown_time;
+        self.missile_counter += 1;
+
+        let missile_id = format!("{}_{:03}", self.id, self.missile_counter);
+        let missile = Missile::new(
+            missile_id,
+            self.position,
+            target_id.to_string(),
+        );
+
+        // 発射記録を追加
+        let launch_record = LaunchRecord {
+            timestamp: 0.0, // 実際の時刻は外部から設定
+            missile_id: missile.get_id(),
+            target_id: target_id.to_string(),
+            launch_position: self.position,
+        };
+        self.launch_history.push(launch_record);
+
+        Some(missile)
     }
 
     /// 発射統計の取得
@@ -205,11 +222,38 @@ pub struct LaunchStats {
 }
 
 impl IAgent for Launcher {
-    fn initialize(&mut self) {
+    fn initialize(&mut self, scenario_config: &crate::scenario::ScenarioConfig) {
         self.status = AgentStatus::Active;
-        self.cooldown_remaining = 0.0;
         self.launch_queue.clear();
         self.launch_history.clear();
+        
+        // シナリオからランチャー設定を探して適用
+        for launcher_config in &scenario_config.friendly_forces.launchers {
+            if launcher_config.id == self.id {
+                // ミサイル装備数の設定
+                self.max_missiles = launcher_config.missiles_loaded;
+                self.current_missiles = launcher_config.missiles_loaded;
+                
+                // クールダウン時間の設定
+                self.cooldown_time = launcher_config.cooldown_s;
+                
+                // 初期クールダウン状態の設定
+                if scenario_config.policy.launcher_initially_cooled {
+                    self.cooldown_remaining = 0.0;
+                } else {
+                    self.cooldown_remaining = launcher_config.cooldown_s;
+                }
+                break;
+            }
+        }
+        
+        // ミサイル性能パラメータの設定
+        let missile_kinematics = &scenario_config.missile_defaults.kinematics;
+        self.missile_initial_speed = missile_kinematics.initial_speed_mps;
+        self.missile_max_speed = missile_kinematics.max_speed_mps;
+        self.missile_max_accel = missile_kinematics.max_accel_mps2;
+        self.missile_max_turn_rate = missile_kinematics.max_turn_rate_deg_s;
+        self.missile_intercept_radius = missile_kinematics.intercept_radius_m;
     }
 
     fn tick(&mut self, dt: f64) {

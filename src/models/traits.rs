@@ -3,7 +3,7 @@ use crate::models::common::*;
 /// 全てのシミュレーションエージェントが実装する基本インターフェース
 pub trait IAgent {
     /// エージェントの初期化
-    fn initialize(&mut self);
+    fn initialize(&mut self, scenario_config: &crate::scenario::ScenarioConfig);
     
     /// 1ティックの処理実行
     fn tick(&mut self, dt: f64);

@@ -20,44 +20,25 @@ pub struct Target {
 }
 
 impl Target {
-    /// 新しいTargetインスタンスを作成
+    /// 新しいTargetインスタンスを作成（シンプルな初期化）
     pub fn new(
         id: String,
         start_position: Position3D,
         destination: Position3D,
-        arrival_radius: f64,
-        endurance: u32,
         group_id: String,
-        spawn_time: f64,
-        speed: f64,
     ) -> Self {
-        // 目的地への方向ベクトルを計算
-        let direction = destination - start_position;
-        let direction_magnitude = direction.magnitude();
-        
-        // 正規化した方向ベクトルに速度を掛けて速度ベクトルを作成
-        let velocity = if direction_magnitude > 0.0 {
-            Velocity3D::new(
-                (direction.x / direction_magnitude) * speed,
-                (direction.y / direction_magnitude) * speed,
-                (direction.z / direction_magnitude) * speed,
-            )
-        } else {
-            Velocity3D::new(0.0, 0.0, 0.0)
-        };
-
         Self {
             id,
             position: start_position,
-            velocity,
+            velocity: Velocity3D::new(0.0, 0.0, 0.0),   // initializeで設定
             destination,
-            arrival_radius,
-            endurance,
-            max_endurance: endurance,
-            status: AgentStatus::Inactive, // spawn_timeまで非アクティブ
+            arrival_radius: 0.0,                        // initializeで設定
+            endurance: 0,                               // initializeで設定
+            max_endurance: 0,                           // initializeで設定
+            status: AgentStatus::Inactive,              // spawn_timeまで非アクティブ
             group_id,
-            spawn_time,
-            speed,
+            spawn_time: 0.0,                            // initializeで設定
+            speed: 0.0,                                 // initializeで設定
         }
     }
 
@@ -88,12 +69,42 @@ impl Target {
         }
     }
 
+    /// ターゲット固有のパラメータを設定
+    pub fn set_parameters(
+        &mut self,
+        arrival_radius: f64,
+        endurance: u32,
+        spawn_time: f64,
+        speed: f64,
+    ) {
+        self.arrival_radius = arrival_radius;
+        self.endurance = endurance;
+        self.max_endurance = endurance;
+        self.spawn_time = spawn_time;
+        self.speed = speed;
+        
+        // 目的地への方向ベクトルを計算して速度ベクトルを設定
+        let direction = self.destination - self.position;
+        let direction_magnitude = direction.magnitude();
+        
+        self.velocity = if direction_magnitude > 0.0 {
+            Velocity3D::new(
+                (direction.x / direction_magnitude) * speed,
+                (direction.y / direction_magnitude) * speed,
+                (direction.z / direction_magnitude) * speed,
+            )
+        } else {
+            Velocity3D::new(0.0, 0.0, 0.0)
+        };
+    }
+
     /// スポーン判定
     pub fn check_spawn(&mut self, current_time: f64) {
         if self.status == AgentStatus::Inactive && current_time >= self.spawn_time {
             self.status = AgentStatus::Active;
         }
     }
+
 
     /// 到達予想時刻を計算（Tgo計算用）
     pub fn calculate_time_to_go(&self) -> f64 {
@@ -113,8 +124,23 @@ impl Target {
 }
 
 impl IAgent for Target {
-    fn initialize(&mut self) {
-        // 初期化時は特に何もしない（コンストラクタで設定済み）
+    fn initialize(&mut self, scenario_config: &crate::scenario::ScenarioConfig) {
+        // 距離測定方式の設定
+        let distance_convention = &scenario_config.world.distance_conventions.breakthrough;
+        match distance_convention.as_str() {
+            "XY" => {
+                // XY平面での突破判定（デフォルト）
+            },
+            "3D" => {
+                // 3D距離での突破判定
+            },
+            _ => {
+                // デフォルト
+            }
+        }
+        
+        // 個別のターゲットパラメータは既にコンストラクタで設定済み
+        // ここではグローバルな設定値のみ適用
     }
 
     fn tick(&mut self, dt: f64) {
@@ -255,16 +281,21 @@ impl TargetGroup {
 
         for (index, position) in positions.iter().enumerate() {
             let target_id = format!("{}_T{:03}", self.id, index + 1);
-            let target = Target::new(
+            let mut target = Target::new(
                 target_id,
                 *position,
                 self.destination,
+                self.id.clone(),
+            );
+            
+            // パラメータを設定
+            target.set_parameters(
                 self.arrival_radius,
                 self.endurance,
-                self.id.clone(),
                 self.spawn_time,
                 self.speed,
             );
+            
             targets.push(target);
         }
 

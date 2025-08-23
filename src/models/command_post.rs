@@ -152,6 +152,55 @@ impl CommandPost {
         }
     }
 
+
+    /// ターゲットリストの更新
+    pub fn update_target_list(&mut self, targets: Vec<&Target>) {
+        self.target_priorities.clear();
+        
+        for target in targets {
+            if target.is_active() {
+                let tgo = target.calculate_time_to_go();
+                let distance_xy = target.position.distance_xy(&self.position);
+                let assigned_missiles = self.missile_assignments
+                    .get(&target.id)
+                    .map(|missiles| missiles.len() as u32)
+                    .unwrap_or(0);
+
+                let priority = TargetPriority {
+                    target_id: target.id.clone(),
+                    tgo,
+                    distance_xy,
+                    assigned_missiles,
+                    target_endurance: target.endurance,
+                };
+
+                self.target_priorities.push(priority);
+            }
+        }
+
+        self.target_priorities.sort_by(|a, b| {
+            a.tgo.partial_cmp(&b.tgo)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.distance_xy.partial_cmp(&b.distance_xy).unwrap_or(std::cmp::Ordering::Equal))
+                .then(a.target_id.cmp(&b.target_id))
+        });
+    }
+
+    /// ミサイル発射割り当てを取得
+    pub fn get_missile_assignment(&mut self, launcher_id: &str) -> Option<crate::simulation::MissileAssignment> {
+        for priority in &self.target_priorities {
+            let assigned_count = priority.assigned_missiles;
+            if assigned_count < priority.target_endurance {
+                return Some(crate::simulation::MissileAssignment {
+                    launcher_id: launcher_id.to_string(),
+                    target_id: priority.target_id.clone(),
+                    priority: priority.tgo,
+                });
+            }
+        }
+        None
+    }
+
     /// ミサイルが消滅した際の処理
     pub fn on_missile_destroyed(&mut self, missile_id: String) {
         for (_, missile_ids) in self.missile_assignments.iter_mut() {
@@ -167,8 +216,15 @@ impl CommandPost {
 }
 
 impl IAgent for CommandPost {
-    fn initialize(&mut self) {
+    fn initialize(&mut self, scenario_config: &crate::scenario::ScenarioConfig) {
         self.status = AgentStatus::Active;
+        
+        // ポリシー設定の適用
+        let policy = &scenario_config.policy;
+        if !policy.tgo_definition.is_empty() {
+            // Tgoの定義に基づく計算方法を設定
+        }
+        // tie_breakers、launcher_selection_order、launcher_initially_cooledの設定も必要に応じて実装
     }
 
     fn tick(&mut self, _dt: f64) {

@@ -93,15 +93,10 @@ impl Missile {
         id: String,
         launch_position: Position3D,
         target_id: String,
-        initial_speed: f64,
-        max_speed: f64,
-        max_accel: f64,
-        max_turn_rate: f64,
-        intercept_radius: f64,
     ) -> Self {
-        // 初期速度を上方向に設定（発射直後）
-        let initial_velocity = Velocity3D::new(0.0, 0.0, initial_speed);
-        let initial_attitude = Attitude3D::from_velocity(&initial_velocity);
+        // 初期速度は上方向（発射直後）
+        let initial_velocity = Velocity3D::new(0.0, 0.0, 0.0);  // initializeで設定
+        let initial_attitude = Attitude3D::new(0.0, 0.0, 0.0);
         
         Self {
             id,
@@ -110,17 +105,17 @@ impl Missile {
             acceleration: Acceleration3D::new(0.0, 0.0, 0.0),
             target_id,
             status: AgentStatus::Active,
-            initial_speed,
-            max_speed,
-            max_accel,
-            max_turn_rate,
-            intercept_radius,
-            guidance_n: 3.5, // デフォルト値
+            initial_speed: 0.0,                     // initializeで設定
+            max_speed: 0.0,                         // initializeで設定
+            max_accel: 0.0,                         // initializeで設定
+            max_turn_rate: 0.0,                     // initializeで設定
+            intercept_radius: 0.0,                  // initializeで設定
+            guidance_n: 0.0,                        // initializeで設定
             guidance_phase: GuidancePhase::Boost,
-            endgame_threshold: intercept_radius * 2.0,
+            endgame_threshold: 0.0,                 // initializeで設定
             miss_distance_history: Vec::new(),
             miss_increase_count: 0,
-            endgame_miss_increase_ticks: 3, // デフォルト値
+            endgame_miss_increase_ticks: 0,         // initializeで設定
             attitude: initial_attitude,
             turn_rate: 0.0,
             flight_time: 0.0,
@@ -339,12 +334,49 @@ impl Missile {
 }
 
 impl IAgent for Missile {
-    fn initialize(&mut self) {
+    fn initialize(&mut self, scenario_config: &crate::scenario::ScenarioConfig) {
         self.status = AgentStatus::Active;
         self.flight_time = 0.0;
         self.total_distance = 0.0;
         self.miss_distance_history.clear();
         self.miss_increase_count = 0;
+        
+        // ミサイル性能パラメータの設定
+        let missile_kinematics = &scenario_config.missile_defaults.kinematics;
+        self.initial_speed = missile_kinematics.initial_speed_mps;
+        self.max_speed = missile_kinematics.max_speed_mps;
+        self.max_accel = missile_kinematics.max_accel_mps2;
+        self.max_turn_rate = missile_kinematics.max_turn_rate_deg_s;
+        self.intercept_radius = missile_kinematics.intercept_radius_m;
+        
+        // 誘導設定の適用
+        let guidance_config = &scenario_config.policy.missile_guidance;
+        self.guidance_n = guidance_config.n;
+        
+        // 終盤設定の適用
+        let endgame_factor = guidance_config.endgame_factor;
+        self.endgame_miss_increase_ticks = guidance_config.endgame_miss_increase_ticks;
+        
+        // 終盤判定閾値を計算（迎撃距離の倍数）
+        self.endgame_threshold = self.intercept_radius * endgame_factor;
+        
+        // 初期速度を上方向に設定（発射直後）
+        self.velocity = Velocity3D::new(0.0, 0.0, self.initial_speed);
+        self.attitude = Attitude3D::from_velocity(&self.velocity);
+        
+        // 距離測定方式の設定
+        let intercept_convention = &scenario_config.world.distance_conventions.intercept;
+        match intercept_convention.as_str() {
+            "3D" => {
+                // 3D距離での迎撃判定（デフォルト）
+            },
+            "XY" => {
+                // XY平面距離での迎撃判定
+            },
+            _ => {
+                // デフォルト
+            }
+        }
     }
 
     fn tick(&mut self, dt: f64) {
