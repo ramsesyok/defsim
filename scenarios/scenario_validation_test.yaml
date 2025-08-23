@@ -1,0 +1,199 @@
+# scenario_validation_test.yaml — 設定値検証用テストシナリオ
+meta:
+  version: "1.0"
+  name: "validation_test"
+  description: "各種パラメータの境界値・異常値テスト用シナリオ"
+
+sim:
+  dt_s: 0.05  # 細かい時間刻み
+  t_max_s: 180
+  seed: 999
+
+world:
+  region_rect:
+    xmin_m: -300000
+    xmax_m:  300000
+    ymin_m: -300000
+    ymax_m:  300000
+  z_limits_m: [0, 5000]
+  distance_conventions:
+    breakthrough: "XY"
+    sensor: "3D"
+    launcher_selection: "XY"
+    intercept: "3D"
+
+command_post:
+  position: { x_m: 200000, y_m: -200000 }
+  arrival_radius_m: 10000  # 小さな到達範囲
+
+policy:
+  tgo_definition: "Tgo = max(0, (||r_xy|| - arrival_radius_m) / v_target)"
+  tie_breakers: ["distance_xy", "id_ascending"]
+  launcher_selection_order: ["cooldown_shortest", "distance_shortest", "id_ascending"]
+  launcher_initially_cooled: true
+  angle_reference:
+    zero_deg_axis: "+X"
+    rotation: "CCW"
+  missile_guidance:
+    type: "true_3d_pn"
+    N: 4.0  # 高い比例航法定数
+    endgame_factor: 3.0  # 大きな終盤判定係数
+    endgame_miss_increase_ticks: 2  # 短い閾値
+  missile_kinematics_defaults:
+    initial_speed_mps: 500   # 高初速
+    max_speed_mps: 2000      # 高最大速度
+    max_accel_mps2: 150      # 高加速度
+    max_turn_rate_deg_s: 90  # 高旋回レート
+    intercept_radius_m: 25   # 小さな迎撃半径
+
+friendly_forces:
+  deploy_rect_xy:
+    xmin_m:  100000
+    xmax_m:  300000
+    ymin_m: -300000
+    ymax_m: -100000
+
+  sensors:
+    # 境界位置のセンサー
+    - id: S001_boundary
+      pos: { x_m: 299000, y_m: -299000, z_m: 4999 }  # 境界近く
+      range_m: 50000  # 短距離
+    
+    # 高性能センサー
+    - id: S002_high_perf
+      pos: { x_m: 150000, y_m: -150000, z_m: 1000 }
+      range_m: 300000  # 超長距離
+    
+    # 低高度センサー
+    - id: S003_low_alt
+      pos: { x_m: 200000, y_m: -250000, z_m: 10 }
+      range_m: 100000
+
+  launchers:
+    # 高速発射ランチャー
+    - id: L001_rapid_fire
+      pos: { x_m: 180000, y_m: -180000, z_m: 100 }
+      missiles_loaded: 1  # 最小装備数
+      cooldown_s: 0.5     # 超高速クールダウン
+    
+    # 大容量ランチャー
+    - id: L002_high_capacity
+      pos: { x_m: 220000, y_m: -180000, z_m: 50 }
+      missiles_loaded: 20  # 大容量
+      cooldown_s: 10       # 長いクールダウン
+    
+    # 境界位置ランチャー
+    - id: L003_boundary
+      pos: { x_m: 299500, y_m: -299500, z_m: 4999 }
+      missiles_loaded: 4
+      cooldown_s: 5
+
+enemy_forces:
+  spawn_rect_xy:
+    xmin_m: -300000
+    xmax_m: -100000
+    ymin_m: -100000
+    ymax_m:  300000
+
+  groups:
+    # 単機テスト
+    - id: G001_single
+      spawn_time_s: 10
+      center_xy: { x_m: -200000, y_m: 200000 }
+      z_m: 2500
+      count: 1  # 最小機数
+      ring_spacing_m: 0  # 間隔なし
+      start_angle_deg: 0
+      ring_half_offset: false
+      endurance_pt: 1
+      speed_mps: 100  # 低速
+
+    # 高速・高耐久敵
+    - id: G002_high_perf
+      spawn_time_s: 30
+      center_xy: { x_m: -250000, y_m: 150000 }
+      z_m: 4999  # 最高高度
+      count: 3
+      ring_spacing_m: 500  # 密集配置
+      start_angle_deg: 45
+      ring_half_offset: true
+      endurance_pt: 10  # 超高耐久
+      speed_mps: 500    # 超高速
+
+    # 超低高度敵
+    - id: G003_ultra_low
+      spawn_time_s: 60
+      center_xy: { x_m: -150000, y_m: 250000 }
+      z_m: 1  # 最低高度
+      count: 5
+      ring_spacing_m: 200
+      start_angle_deg: 90
+      ring_half_offset: false
+      endurance_pt: 1
+      speed_mps: 300
+
+    # 大型編隊
+    - id: G004_large_formation
+      spawn_time_s: 90
+      center_xy: { x_m: -180000, y_m: 180000 }
+      z_m: 3000
+      count: 50  # 大型編隊
+      ring_spacing_m: 3000  # 広い間隔
+      start_angle_deg: 180
+      ring_half_offset: true
+      endurance_pt: 2
+      speed_mps: 250
+
+    # 境界スポーン
+    - id: G005_boundary_spawn
+      spawn_time_s: 120
+      center_xy: { x_m: -299000, y_m: 299000 }  # 境界近く
+      z_m: 100
+      count: 2
+      ring_spacing_m: 1000
+      start_angle_deg: 270
+      ring_half_offset: false
+      endurance_pt: 1
+      speed_mps: 400
+
+    # 遅延スポーン
+    - id: G006_delayed
+      spawn_time_s: 150  # 終了間際
+      center_xy: { x_m: -220000, y_m: 220000 }
+      z_m: 2000
+      count: 6
+      ring_spacing_m: 800
+      start_angle_deg: 315
+      ring_half_offset: true
+      endurance_pt: 3
+      speed_mps: 350
+
+missile_defaults:
+  kinematics:
+    initial_speed_mps: 500
+    max_speed_mps: 2000
+    max_accel_mps2: 150
+    max_turn_rate_deg_s: 90
+    intercept_radius_m: 25
+
+# 検証項目:
+# 1. 境界値テスト
+#    - 座標系の境界近くでの動作
+#    - 最大/最小高度での動作
+#    - 時間の境界値（開始直後、終了直前）
+#
+# 2. 異常値テスト
+#    - 超高性能パラメータでの安定性
+#    - 極端な配置での動作
+#    - 大量エンティティでの処理
+#
+# 3. エッジケース
+#    - 単機vs大編隊
+#    - 超高速vs超低速
+#    - 超高耐久vs低耐久
+#    - 密集vs分散配置
+#
+# 4. システム限界
+#    - メモリ使用量
+#    - 計算精度
+#    - 同期処理

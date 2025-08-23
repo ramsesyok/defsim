@@ -1,0 +1,92 @@
+# scenario_simple_test.yaml — シンプルテスト用シナリオ
+meta:
+  version: "1.0"
+  name: "simple_test"
+  description: "基本機能確認用の小規模シナリオ - 開発・デバッグ用"
+
+sim:
+  dt_s: 0.1
+  t_max_s: 300  # 5分間の短時間シミュレーション
+  seed: 1
+
+world:
+  region_rect:
+    xmin_m: -500000  # 狭い領域でのテスト
+    xmax_m:  500000
+    ymin_m: -500000
+    ymax_m:  500000
+  z_limits_m: [0, 5000]
+  distance_conventions:
+    breakthrough: "XY"
+    sensor: "3D"
+    launcher_selection: "XY"
+    intercept: "3D"
+
+command_post:
+  position: { x_m: 400000, y_m: -400000 }
+  arrival_radius_m: 25000
+
+policy:
+  tgo_definition: "Tgo = max(0, (||r_xy|| - arrival_radius_m) / v_target)"
+  tie_breakers: ["distance_xy", "id_ascending"]
+  launcher_selection_order: ["cooldown_shortest", "distance_shortest", "id_ascending"]
+  launcher_initially_cooled: true
+  angle_reference:
+    zero_deg_axis: "+X"
+    rotation: "CCW"
+  missile_guidance:
+    type: "true_3d_pn"
+    N: 3.0
+    endgame_factor: 2.0
+    endgame_miss_increase_ticks: 3
+  missile_kinematics_defaults:
+    initial_speed_mps: 300
+    max_speed_mps: 1200
+    max_accel_mps2: 80
+    max_turn_rate_deg_s: 40
+    intercept_radius_m: 50
+
+friendly_forces:
+  deploy_rect_xy:
+    xmin_m:  200000
+    xmax_m:  500000
+    ymin_m: -500000
+    ymax_m: -200000
+
+  sensors:
+    - id: S001_test
+      pos: { x_m: 350000, y_m: -350000, z_m: 50 }
+      range_m: 150000
+
+  launchers:
+    - id: L001_test
+      pos: { x_m: 380000, y_m: -380000, z_m: 20 }
+      missiles_loaded: 8
+      cooldown_s: 5
+
+enemy_forces:
+  spawn_rect_xy:
+    xmin_m: -500000
+    xmax_m: -200000
+    ymin_m: -200000
+    ymax_m:  500000
+
+  groups:
+    - id: G001_test
+      spawn_time_s: 30
+      center_xy: { x_m: -350000, y_m: 300000 }
+      z_m: 3000
+      count: 4
+      ring_spacing_m: 1000
+      start_angle_deg: 0
+      ring_half_offset: false
+      endurance_pt: 1
+      speed_mps: 200
+
+missile_defaults:
+  kinematics:
+    initial_speed_mps: 300
+    max_speed_mps: 1200
+    max_accel_mps2: 80
+    max_turn_rate_deg_s: 40
+    intercept_radius_m: 50

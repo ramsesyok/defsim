@@ -1,0 +1,224 @@
+# scenario_performance_test.yaml — 性能評価用シナリオ
+meta:
+  version: "1.0"
+  name: "performance_test"
+  description: "大量エージェント性能評価シナリオ - エンティティ数スケーラビリティテスト"
+
+sim:
+  dt_s: 0.1
+  t_max_s: 600
+  seed: 100
+
+world:
+  region_rect:
+    xmin_m: -1000000
+    xmax_m:  1000000
+    ymin_m: -1000000
+    ymax_m:  1000000
+  z_limits_m: [0, 5000]
+  distance_conventions:
+    breakthrough: "XY"
+    sensor: "3D"
+    launcher_selection: "XY"
+    intercept: "3D"
+
+command_post:
+  position: { x_m: 800000, y_m: -800000 }
+  arrival_radius_m: 20000
+
+policy:
+  tgo_definition: "Tgo = max(0, (||r_xy|| - arrival_radius_m) / v_target)"
+  tie_breakers: ["distance_xy", "id_ascending"]
+  launcher_selection_order: ["cooldown_shortest", "distance_shortest", "id_ascending"]
+  launcher_initially_cooled: true
+  angle_reference:
+    zero_deg_axis: "+X"
+    rotation: "CCW"
+  missile_guidance:
+    type: "true_3d_pn"
+    N: 3.5
+    endgame_factor: 2.0
+    endgame_miss_increase_ticks: 3
+  missile_kinematics_defaults:
+    initial_speed_mps: 300
+    max_speed_mps: 1200
+    max_accel_mps2: 80
+    max_turn_rate_deg_s: 40
+    intercept_radius_m: 50
+
+friendly_forces:
+  deploy_rect_xy:
+    xmin_m:  400000
+    xmax_m: 1000000
+    ymin_m: -1000000
+    ymax_m:  -400000
+
+  sensors:
+    # センサーネットワーク (10個)
+    - { id: S001, pos: { x_m: 500000, y_m: -500000, z_m: 100 }, range_m: 200000 }
+    - { id: S002, pos: { x_m: 700000, y_m: -500000, z_m: 80 }, range_m: 180000 }
+    - { id: S003, pos: { x_m: 900000, y_m: -500000, z_m: 90 }, range_m: 190000 }
+    - { id: S004, pos: { x_m: 500000, y_m: -700000, z_m: 70 }, range_m: 170000 }
+    - { id: S005, pos: { x_m: 700000, y_m: -700000, z_m: 110 }, range_m: 220000 }
+    - { id: S006, pos: { x_m: 900000, y_m: -700000, z_m: 85 }, range_m: 185000 }
+    - { id: S007, pos: { x_m: 500000, y_m: -900000, z_m: 95 }, range_m: 195000 }
+    - { id: S008, pos: { x_m: 700000, y_m: -900000, z_m: 75 }, range_m: 175000 }
+    - { id: S009, pos: { x_m: 900000, y_m: -900000, z_m: 105 }, range_m: 205000 }
+    - { id: S010, pos: { x_m: 750000, y_m: -750000, z_m: 150 }, range_m: 250000 }  # 中央長距離
+
+  launchers:
+    # 大量ランチャー配置 (20個)
+    - { id: L001, pos: { x_m: 520000, y_m: -520000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L002, pos: { x_m: 580000, y_m: -520000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L003, pos: { x_m: 640000, y_m: -520000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L004, pos: { x_m: 700000, y_m: -520000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L005, pos: { x_m: 520000, y_m: -580000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L006, pos: { x_m: 580000, y_m: -580000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L007, pos: { x_m: 640000, y_m: -580000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L008, pos: { x_m: 700000, y_m: -580000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L009, pos: { x_m: 760000, y_m: -580000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L010, pos: { x_m: 820000, y_m: -580000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L011, pos: { x_m: 520000, y_m: -640000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L012, pos: { x_m: 580000, y_m: -640000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L013, pos: { x_m: 640000, y_m: -640000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L014, pos: { x_m: 700000, y_m: -640000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L015, pos: { x_m: 760000, y_m: -640000, z_m: 25 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L016, pos: { x_m: 820000, y_m: -640000, z_m: 30 }, missiles_loaded: 6, cooldown_s: 4.0 }
+    - { id: L017, pos: { x_m: 640000, y_m: -700000, z_m: 25 }, missiles_loaded: 8, cooldown_s: 3.5 }
+    - { id: L018, pos: { x_m: 700000, y_m: -700000, z_m: 30 }, missiles_loaded: 8, cooldown_s: 3.5 }
+    - { id: L019, pos: { x_m: 760000, y_m: -700000, z_m: 35 }, missiles_loaded: 8, cooldown_s: 3.5 }
+    - { id: L020, pos: { x_m: 820000, y_m: -700000, z_m: 40 }, missiles_loaded: 8, cooldown_s: 3.5 }
+
+enemy_forces:
+  spawn_rect_xy:
+    xmin_m: -1000000
+    xmax_m:  -400000
+    ymin_m:  -600000
+    ymax_m:  1000000
+
+  groups:
+    # 大量敵グループ (10グループ、計200機以上)
+    - id: G001_mass_north
+      spawn_time_s: 60
+      center_xy: { x_m: -800000, y_m: 800000 }
+      z_m: 4000
+      count: 25
+      ring_spacing_m: 2000
+      start_angle_deg: 0
+      ring_half_offset: true
+      endurance_pt: 2
+      speed_mps: 200
+
+    - id: G002_mass_northeast
+      spawn_time_s: 90
+      center_xy: { x_m: -600000, y_m: 700000 }
+      z_m: 3500
+      count: 20
+      ring_spacing_m: 1800
+      start_angle_deg: 30
+      ring_half_offset: true
+      endurance_pt: 2
+      speed_mps: 220
+
+    - id: G003_mass_east
+      spawn_time_s: 120
+      center_xy: { x_m: -500000, y_m: 500000 }
+      z_m: 3000
+      count: 18
+      ring_spacing_m: 1600
+      start_angle_deg: 60
+      ring_half_offset: false
+      endurance_pt: 1
+      speed_mps: 250
+
+    - id: G004_mass_center
+      spawn_time_s: 150
+      center_xy: { x_m: -700000, y_m: 600000 }
+      z_m: 3200
+      count: 30
+      ring_spacing_m: 2200
+      start_angle_deg: 90
+      ring_half_offset: true
+      endurance_pt: 3
+      speed_mps: 180
+
+    - id: G005_mass_west
+      spawn_time_s: 180
+      center_xy: { x_m: -900000, y_m: 400000 }
+      z_m: 2800
+      count: 22
+      ring_spacing_m: 1900
+      start_angle_deg: 120
+      ring_half_offset: true
+      endurance_pt: 2
+      speed_mps: 210
+
+    - id: G006_mass_south
+      spawn_time_s: 210
+      center_xy: { x_m: -800000, y_m: 200000 }
+      z_m: 2500
+      count: 26
+      ring_spacing_m: 2100
+      start_angle_deg: 150
+      ring_half_offset: false
+      endurance_pt: 2
+      speed_mps: 190
+
+    - id: G007_mass_southwest
+      spawn_time_s: 240
+      center_xy: { x_m: -900000, y_m: 100000 }
+      z_m: 2200
+      count: 16
+      ring_spacing_m: 1500
+      start_angle_deg: 180
+      ring_half_offset: true
+      endurance_pt: 1
+      speed_mps: 260
+
+    - id: G008_mass_central_high
+      spawn_time_s: 270
+      center_xy: { x_m: -650000, y_m: 450000 }
+      z_m: 4500
+      count: 24
+      ring_spacing_m: 2000
+      start_angle_deg: 210
+      ring_half_offset: true
+      endurance_pt: 3
+      speed_mps: 170
+
+    - id: G009_mass_low_alt
+      spawn_time_s: 300
+      center_xy: { x_m: -750000, y_m: 350000 }
+      z_m: 1500
+      count: 20
+      ring_spacing_m: 1700
+      start_angle_deg: 240
+      ring_half_offset: false
+      endurance_pt: 2
+      speed_mps: 300
+
+    - id: G010_mass_final
+      spawn_time_s: 330
+      center_xy: { x_m: -850000, y_m: 650000 }
+      z_m: 3800
+      count: 35
+      ring_spacing_m: 2500
+      start_angle_deg: 270
+      ring_half_offset: true
+      endurance_pt: 4
+      speed_mps: 160
+
+missile_defaults:
+  kinematics:
+    initial_speed_mps: 300
+    max_speed_mps: 1200
+    max_accel_mps2: 80
+    max_turn_rate_deg_s: 40
+    intercept_radius_m: 50
+
+# 性能テスト指標:
+# - 総敵数: 236機
+# - 総ランチャー: 20基 (124発)
+# - 総センサー: 10基
+# - 最大同時飛翔ミサイル数: 50発以上を想定
+# - メモリ使用量、CPU負荷、フレームレート測定対象

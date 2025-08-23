@@ -1,0 +1,207 @@
+# scenario_multi_wave.yaml — 多波攻撃シナリオ
+meta:
+  version: "1.0"
+  name: "multi_wave_attack"
+  description: "複数波に分かれた敵の協調攻撃シナリオ - 防衛能力の限界テスト"
+
+sim:
+  dt_s: 0.1
+  t_max_s: 1200  # 20分間のシミュレーション
+  seed: 42
+
+world:
+  region_rect:
+    xmin_m: -1000000
+    xmax_m:  1000000
+    ymin_m: -1000000
+    ymax_m:  1000000
+  z_limits_m: [0, 5000]
+  distance_conventions:
+    breakthrough: "XY"
+    sensor: "3D"
+    launcher_selection: "XY"
+    intercept: "3D"
+
+command_post:
+  position: { x_m: 800000, y_m: -800000 }
+  arrival_radius_m: 15000  # より厳しい突破判定
+
+policy:
+  tgo_definition: "Tgo = max(0, (||r_xy|| - arrival_radius_m) / v_target)"
+  tie_breakers: ["distance_xy", "id_ascending"]
+  launcher_selection_order: ["cooldown_shortest", "distance_shortest", "id_ascending"]
+  launcher_initially_cooled: true
+  angle_reference:
+    zero_deg_axis: "+X"
+    rotation: "CCW"
+  missile_guidance:
+    type: "true_3d_pn"
+    N: 3.8  # より積極的な誘導
+    endgame_factor: 2.0
+    endgame_miss_increase_ticks: 4
+  missile_kinematics_defaults:
+    initial_speed_mps: 350
+    max_speed_mps: 1300
+    max_accel_mps2: 85
+    max_turn_rate_deg_s: 45
+    intercept_radius_m: 45
+
+friendly_forces:
+  deploy_rect_xy:
+    xmin_m:  400000
+    xmax_m: 1000000
+    ymin_m: -1000000
+    ymax_m:  -400000
+
+  sensors:
+    - id: S001_north
+      pos: { x_m: 600000, y_m: -500000, z_m: 100 }
+      range_m: 200000
+    - id: S002_east
+      pos: { x_m: 950000, y_m: -700000, z_m: 80 }
+      range_m: 180000
+    - id: S003_south
+      pos: { x_m: 700000, y_m: -950000, z_m: 60 }
+      range_m: 190000
+    - id: S004_central
+      pos: { x_m: 750000, y_m: -750000, z_m: 120 }
+      range_m: 220000  # 中央の長距離センサー
+
+  launchers:
+    # 北側防衛線
+    - id: L001_north_01
+      pos: { x_m: 650000, y_m: -600000, z_m: 25 }
+      missiles_loaded: 6
+      cooldown_s: 4.5
+    - id: L002_north_02
+      pos: { x_m: 750000, y_m: -580000, z_m: 30 }
+      missiles_loaded: 6
+      cooldown_s: 4.5
+    
+    # 東側防衛線
+    - id: L003_east_01
+      pos: { x_m: 900000, y_m: -750000, z_m: 20 }
+      missiles_loaded: 8
+      cooldown_s: 5.0
+    - id: L004_east_02
+      pos: { x_m: 920000, y_m: -850000, z_m: 25 }
+      missiles_loaded: 8
+      cooldown_s: 5.0
+    
+    # 中央防衛線（最終防衛ライン）
+    - id: L005_central_01
+      pos: { x_m: 780000, y_m: -780000, z_m: 40 }
+      missiles_loaded: 12  # 高容量ランチャー
+      cooldown_s: 3.5      # 高速発射
+    - id: L006_central_02
+      pos: { x_m: 820000, y_m: -820000, z_m: 40 }
+      missiles_loaded: 12
+      cooldown_s: 3.5
+
+enemy_forces:
+  spawn_rect_xy:
+    xmin_m: -1000000
+    xmax_m:  -400000
+    ymin_m:  -600000
+    ymax_m:  1000000
+
+  groups:
+    # 第1波: 偵察攻撃（早期警戒破壊目的）
+    - id: G001_reconnaissance
+      spawn_time_s: 60
+      center_xy: { x_m: -900000, y_m: 800000 }
+      z_m: 4000
+      count: 4
+      ring_spacing_m: 800
+      start_angle_deg: 45
+      ring_half_offset: false
+      endurance_pt: 1
+      speed_mps: 250
+
+    # 第2波: 北方からの主力攻撃
+    - id: G002_main_north
+      spawn_time_s: 180
+      center_xy: { x_m: -750000, y_m: 900000 }
+      z_m: 3500
+      count: 16
+      ring_spacing_m: 2000
+      start_angle_deg: 0
+      ring_half_offset: true
+      endurance_pt: 3
+      speed_mps: 220
+
+    # 第3波: 東方からの陽動攻撃
+    - id: G003_diversion_east
+      spawn_time_s: 240
+      center_xy: { x_m: -500000, y_m: 600000 }
+      z_m: 2800
+      count: 8
+      ring_spacing_m: 1500
+      start_angle_deg: 90
+      ring_half_offset: true
+      endurance_pt: 2
+      speed_mps: 280  # 高速突入
+
+    # 第4波: 北東からの第二主力
+    - id: G004_main_northeast
+      spawn_time_s: 360
+      center_xy: { x_m: -600000, y_m: 800000 }
+      z_m: 3200
+      count: 20
+      ring_spacing_m: 1800
+      start_angle_deg: 30
+      ring_half_offset: true
+      endurance_pt: 3
+      speed_mps: 200
+
+    # 第5波: 低高度侵入攻撃
+    - id: G005_low_altitude
+      spawn_time_s: 480
+      center_xy: { x_m: -800000, y_m: 400000 }
+      z_m: 1000  # 低高度
+      count: 12
+      ring_spacing_m: 1200
+      start_angle_deg: 15
+      ring_half_offset: true
+      endurance_pt: 2
+      speed_mps: 320  # 超高速
+
+    # 第6波: 最終飽和攻撃
+    - id: G006_saturation_final
+      spawn_time_s: 600
+      center_xy: { x_m: -700000, y_m: 700000 }
+      z_m: 3800
+      count: 24
+      ring_spacing_m: 2500
+      start_angle_deg: 60
+      ring_half_offset: true
+      endurance_pt: 4  # 高耐久
+      speed_mps: 190
+
+    # 第7波: 残存戦力による最後の攻撃
+    - id: G007_last_stand
+      spawn_time_s: 780
+      center_xy: { x_m: -850000, y_m: 500000 }
+      z_m: 2500
+      count: 8
+      ring_spacing_m: 1000
+      start_angle_deg: 75
+      ring_half_offset: false
+      endurance_pt: 1
+      speed_mps: 350  # 最高速度
+
+missile_defaults:
+  kinematics:
+    initial_speed_mps: 350
+    max_speed_mps: 1300
+    max_accel_mps2: 85
+    max_turn_rate_deg_s: 45
+    intercept_radius_m: 45
+
+# シナリオ設計ノート:
+# - 総敵数: 92機（段階的投入）
+# - 友軍ミサイル総数: 48発
+# - 発射レート制限により全敵を撃破することは困難
+# - 優先度判定とランチャー配置の戦術的重要性を評価
+# - センサーカバレッジと早期警戒の重要性を検証
+# - 多方向攻撃に対する防衛配置の有効性を評価

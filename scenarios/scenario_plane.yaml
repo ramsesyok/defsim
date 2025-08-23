@@ -1,0 +1,118 @@
+# scenario_plane.yaml — 平面版シナリオひな形（単位はすべて m / s / deg）
+meta:
+  version: "1.0"
+  name: "sample_plane"
+  description: "平面直交座標シナリオのテンプレ"
+
+sim:
+  dt_s: 0.1
+  t_max_s: 900
+  seed: 0
+
+world:
+  # XY平面: +X=右, +Y=上, +Z=上空
+  region_rect:              # 原点中心 ±1,000,000 m 四方
+    xmin_m: -1000000
+    xmax_m:  1000000
+    ymin_m: -1000000
+    ymax_m:  1000000
+  z_limits_m: [0, 5000]     # 高度範囲。逸脱時はクランプ（仕様）
+  distance_conventions:
+    breakthrough: "XY"      # 突破判定はXY距離
+    sensor: "3D"            # センサ探知は3D距離（球形半径）
+    launcher_selection: "XY"# ランチャ選定②の距離
+    intercept: "3D"         # miss distance / 迎撃判定距離
+
+command_post:
+  position: { x_m: 800000, y_m: -800000 }  # 指揮所位置（XY）
+  arrival_radius_m: 20000                   # 突破判定の到達範囲
+
+policy:
+  # 優先度判定（Tgo）
+  tgo_definition: "Tgo = max(0, (||r_xy|| - arrival_radius_m) / v_target)"
+  tie_breakers: ["distance_xy", "id_ascending"]
+  # ランチャ選定規則
+  launcher_selection_order: ["cooldown_shortest", "distance_shortest", "id_ascending"]
+  launcher_initially_cooled: true
+  # 編隊角度規約（推奨追記）
+  angle_reference:
+    zero_deg_axis: "+X"     # 0°は+X方向
+    rotation: "CCW"         # +Zから見て反時計回りを正
+  # ミサイル誘導
+  missile_guidance:
+    type: "true_3d_pn"
+    N: 3.5
+    endgame_factor: 2.0       # 終盤= 2 × intercept_radius
+    endgame_miss_increase_ticks: 3  # 連続増加ティック閾値（実装を安定させる任意設定）
+  missile_kinematics_defaults:
+    initial_speed_mps: 300
+    max_speed_mps: 1200
+    max_accel_mps2: 80
+    max_turn_rate_deg_s: 40
+    intercept_radius_m: 50
+
+friendly_forces:
+  deploy_rect_xy:            # 参考・配置域（任意）
+    xmin_m:  500000
+    xmax_m: 1000000
+    ymin_m: -1000000
+    ymax_m:  -500000
+
+  sensors:
+    - id: S001
+      pos: { x_m: 750000, y_m: -900000, z_m: 50 }
+      range_m: 180000
+    - id: S002
+      pos: { x_m: 900000, y_m: -700000, z_m: 50 }
+      range_m: 150000
+
+  launchers:
+    - id: L001
+      pos: { x_m: 780000, y_m: -850000, z_m: 20 }
+      missiles_loaded: 4
+      cooldown_s: 5
+    - id: L002
+      pos: { x_m: 880000, y_m: -820000, z_m: 20 }
+      missiles_loaded: 4
+      cooldown_s: 5
+
+enemy_forces:
+  spawn_rect_xy:
+    xmin_m: -1000000
+    xmax_m:  -500000
+    ymin_m:  -500000
+    ymax_m:  1000000
+
+  # 複数編隊の例
+  groups:
+    - id: G001_wave1
+      spawn_time_s: 120
+      center_xy: { x_m: -800000, y_m: 600000 }  # グループ中心（XY）
+      z_m: 3000                                  # グループ共通高度
+      count: 12                                  # 所属数
+      ring_spacing_m: 1500
+      start_angle_deg: 0
+      ring_half_offset: true
+      endurance_pt: 2                             # 耐久（1命中=1pt減）
+      speed_mps: 200
+      # 目的地は「指揮所位置」想定のため個別destは不要（仕様）
+
+    - id: G002_wave2
+      spawn_time_s: 300
+      center_xy: { x_m: -700000, y_m: 200000 }
+      z_m: 2500
+      count: 8
+      ring_spacing_m: 1200
+      start_angle_deg: 30
+      ring_half_offset: true
+      endurance_pt: 1
+      speed_mps: 180
+
+missile_defaults:
+  # 必要なら個別ミサイル種を定義して参照してもよい
+  kinematics:
+    initial_speed_mps: 300
+    max_speed_mps: 1200
+    max_accel_mps2: 80
+    max_turn_rate_deg_s: 40
+    intercept_radius_m: 50
