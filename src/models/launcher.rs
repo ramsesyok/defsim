@@ -6,37 +6,70 @@ use crate::models::{
 };
 
 /// 発射記録
+/// 
+/// ランチャーがミサイルを発射した記録を保持します。
 #[derive(Debug, Clone)]
 pub struct LaunchRecord {
+    /// 発射時刻（シミュレーション開始からの経過秒数）
     pub timestamp: f64,
+    /// 発射されたミサイルのID
     pub missile_id: String,
+    /// ターゲットのID
     pub target_id: String,
+    /// 発射位置
     pub launch_position: Position3D,
 }
 
 /// ランチャーエージェント
+/// 
+/// ミサイルを発射するプラットフォームです。
+/// クールダウン管理、ミサイル装備数管理、発射キュー管理を行います。
 #[derive(Debug)]
 pub struct Launcher {
+    /// ランチャーの一意識別子
     pub id: String,
+    /// ランチャーの3次元位置
     pub position: Position3D,
+    /// ランチャーの現在の状態
     pub status: AgentStatus,
-    pub max_missiles: u32,           // 最大装備ミサイル数
-    pub current_missiles: u32,       // 現在の装備ミサイル数
-    pub cooldown_time: f64,          // クールダウン時間[s]
-    pub cooldown_remaining: f64,     // 残りクールダウン時間[s]
-    pub launch_queue: VecDeque<String>, // 発射待ちターゲットID
-    pub launch_history: Vec<LaunchRecord>, // 発射履歴
-    pub missile_counter: u32,        // ミサイルID生成用カウンタ
+    /// 最大装備ミサイル数
+    pub max_missiles: u32,
+    /// 現在の装備ミサイル数
+    pub current_missiles: u32,
+    /// クールダウン時間（秒）
+    pub cooldown_time: f64,
+    /// 残りクールダウン時間（秒）
+    pub cooldown_remaining: f64,
+    /// 発射待ちターゲットIDのキュー
+    pub launch_queue: VecDeque<String>,
+    /// 発射履歴のリスト
+    pub launch_history: Vec<LaunchRecord>,
+    /// ミサイルID生成用カウンタ
+    pub missile_counter: u32,
     
-    // ミサイル性能パラメータ（このランチャーが発射するミサイルの仕様）
-    pub missile_initial_speed: f64,   // 初速[m/s]
-    pub missile_max_speed: f64,       // 最大速度[m/s]
-    pub missile_max_accel: f64,       // 最大加速度[m/s²]
-    pub missile_max_turn_rate: f64,   // 最大旋回レート[deg/s]
-    pub missile_intercept_radius: f64, // 迎撃判定距離[m]
+    /// ミサイルの初速（m/s）
+    pub missile_initial_speed: f64,
+    /// ミサイルの最大速度（m/s）
+    pub missile_max_speed: f64,
+    /// ミサイルの最大加速度（m/s²）
+    pub missile_max_accel: f64,
+    /// ミサイルの最大旋回レート（deg/s）
+    pub missile_max_turn_rate: f64,
+    /// ミサイルの迎撃判定距離（m）
+    pub missile_intercept_radius: f64,
 }
 
 impl Launcher {
+    /// 新しいランチャーを作成します
+    /// 
+    /// # 引数
+    /// 
+    /// * `id` - ランチャーの一意識別子
+    /// * `position` - ランチャーの3次元位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// 初期化されたランチャーインスタンス（initializeメソッドで詳細設定が必要）
     pub fn new(id: String, position: Position3D) -> Self {
         Self {
             id,
@@ -58,6 +91,18 @@ impl Launcher {
     }
 
     /// ミサイル発射の実行
+    /// 
+    /// 指定されたターゲットに向けてミサイルを発射します。
+    /// 発射条件を満たさない場合はNoneを返します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_id` - ターゲットのID
+    /// * `current_time` - 発射時刻（シミュレーション開始からの経過秒数）
+    /// 
+    /// # 戻り値
+    /// 
+    /// 発射されたミサイル、発射不可の場合はNone
     pub fn fire_missile(&mut self, target_id: String, current_time: f64) -> Option<Missile> {
         if !self.can_launch() {
             return None;
@@ -91,6 +136,12 @@ impl Launcher {
     }
 
     /// 発射待ちキューにターゲットを追加
+    /// 
+    /// 同じターゲットが既にキューに存在する場合は追加しません。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_id` - キューに追加するターゲットのID
     pub fn queue_target(&mut self, target_id: String) {
         if !self.launch_queue.contains(&target_id) {
             self.launch_queue.push_back(target_id);
@@ -98,33 +149,66 @@ impl Launcher {
     }
 
     /// 発射待ちキューから次のターゲットを取得
+    /// 
+    /// FIFO方式でキューの先頭からターゲットIDを取得します。
+    /// 
+    /// # 戻り値
+    /// 
+    /// キューの次のターゲットID、キューが空の場合はNone
     pub fn get_next_target(&mut self) -> Option<String> {
         self.launch_queue.pop_front()
     }
 
     /// 発射待ちキューをクリア
+    /// 
+    /// 発射待ちキューのすべてのターゲットを削除します。
     pub fn clear_queue(&mut self) {
         self.launch_queue.clear();
     }
 
     /// 特定のターゲットをキューから削除
+    /// 
+    /// 指定されたターゲットIDに一致するエントリをすべてキューから削除します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_id` - 削除するターゲットのID
     pub fn remove_target_from_queue(&mut self, target_id: &str) {
         self.launch_queue.retain(|id| id != target_id);
     }
 
     /// ミサイル再装填（補給処理）
+    /// 
+    /// 指定された数のミサイルを再装填します。最大装備数を超えて再装填することはできません。
+    /// 
+    /// # 引数
+    /// 
+    /// * `count` - 再装填するミサイル数
     pub fn reload(&mut self, count: u32) {
         let reload_count = count.min(self.max_missiles - self.current_missiles);
         self.current_missiles += reload_count;
     }
 
     /// 満載まで再装填
+    /// 
+    /// ランチャーのミサイルを最大装備数まで補給します。
     pub fn reload_full(&mut self) {
         self.current_missiles = self.max_missiles;
     }
 
 
     /// ミサイル発射（シミュレーションエンジン用）
+    /// 
+    /// シミュレーションエンジンから直接呼び出されるミサイル発射メソッドです。
+    /// fire_missileと似た機能ですが、時刻管理が異なります。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_id` - ターゲットのID
+    /// 
+    /// # 戻り値
+    /// 
+    /// 発射されたミサイル、発射不可の場合はNone
     pub fn fire_missile_at_target(&mut self, target_id: &str) -> Option<Missile> {
         // 直接Missileを作成して返す
         if !self.can_launch() {
@@ -156,6 +240,12 @@ impl Launcher {
     }
 
     /// 発射統計の取得
+    /// 
+    /// ランチャーの現在の統計情報を取得します。
+    /// 
+    /// # 戻り値
+    /// 
+    /// 発射統計情報を含むLaunchStats構造体
     pub fn get_launch_stats(&self) -> LaunchStats {
         let total_launches = self.launch_history.len();
         let missiles_remaining = self.current_missiles as usize;
@@ -173,6 +263,16 @@ impl Launcher {
     }
 
     /// 最近の発射記録を取得
+    /// 
+    /// 指定された数の最新発射記録を時系列順で取得します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `count` - 取得する記録の数
+    /// 
+    /// # 戻り値
+    /// 
+    /// 最新の発射記録の参照ベクター
     pub fn get_recent_launches(&self, count: usize) -> Vec<&LaunchRecord> {
         let start_index = if self.launch_history.len() > count {
             self.launch_history.len() - count
@@ -184,6 +284,16 @@ impl Launcher {
     }
 
     /// ランチャーの効率性を計算
+    /// 
+    /// 理論的な最大発射数に対する実際の発射数の比率を計算します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `time_elapsed` - 経過時間（秒）
+    /// 
+    /// # 戻り値
+    /// 
+    /// 効率性（0.0〜1.0の範囲）
     pub fn calculate_efficiency(&self, time_elapsed: f64) -> f64 {
         if time_elapsed <= 0.0 {
             return 0.0;
@@ -200,24 +310,46 @@ impl Launcher {
     }
 
     /// ランチャーの位置を取得（IPlatform実装で必要）
+    /// 
+    /// # 戻り値
+    /// 
+    /// ランチャーの現在位置
     pub fn get_position(&self) -> Position3D {
         self.position
     }
 
     /// ターゲットまでの距離を計算
+    /// 
+    /// ランチャーから指定された位置までのXY平面での距離を計算します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_position` - ターゲットの位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// XY平面での距離（メートル）
     pub fn distance_to_target(&self, target_position: Position3D) -> f64 {
         self.position.distance_xy(&target_position)
     }
 }
 
 /// 発射統計情報
+/// 
+/// ランチャーの現在の状態と統計情報をまとめた構造体です。
 #[derive(Debug, Clone)]
 pub struct LaunchStats {
+    /// 総発射数
     pub total_launches: usize,
+    /// 残りミサイル数
     pub missiles_remaining: usize,
+    /// 発射済みミサイル数
     pub missiles_fired: usize,
+    /// 発射キューの長さ
     pub queue_length: usize,
+    /// 残りクールダウン時間（秒）
     pub cooldown_remaining: f64,
+    /// 発射準備完了フラグ
     pub is_ready: bool,
 }
 
@@ -328,14 +460,30 @@ impl IPlatform for Launcher {
 }
 
 /// 複数のランチャーを管理するバッテリー
+/// 
+/// 複数のランチャーを一括管理し、最適なランチャー選定や
+/// バッテリー全体の統計情報を提供します。
 #[derive(Debug)]
 pub struct LauncherBattery {
+    /// バッテリーの一意識別子
     pub id: String,
+    /// バッテリーに所属するランチャーのリスト
     pub launchers: Vec<Launcher>,
+    /// バッテリーの代表位置
     pub battery_position: Position3D,
 }
 
 impl LauncherBattery {
+    /// 新しいランチャーバッテリーを作成
+    /// 
+    /// # 引数
+    /// 
+    /// * `id` - バッテリーの一意識別子
+    /// * `battery_position` - バッテリーの代表位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// 初期化されたバッテリーインスタンス
     pub fn new(id: String, battery_position: Position3D) -> Self {
         Self {
             id,
@@ -344,21 +492,45 @@ impl LauncherBattery {
         }
     }
 
+    /// バッテリーにランチャーを追加
+    /// 
+    /// # 引数
+    /// 
+    /// * `launcher` - 追加するランチャー
     pub fn add_launcher(&mut self, launcher: Launcher) {
         self.launchers.push(launcher);
     }
 
     /// バッテリー全体の発射可能ミサイル数
+    /// 
+    /// # 戻り値
+    /// 
+    /// バッテリー内のすべてのランチャーの現在装備ミサイル数の合計
     pub fn total_available_missiles(&self) -> u32 {
         self.launchers.iter().map(|l| l.current_missiles).sum()
     }
 
     /// 発射可能なランチャー数
+    /// 
+    /// # 戻り値
+    /// 
+    /// 現在発射準備が完了しているランチャーの数
     pub fn ready_launchers_count(&self) -> usize {
         self.launchers.iter().filter(|l| l.can_launch()).count()
     }
 
     /// 最適なランチャーを選択（クールダウン最短 → 距離最短 → ID昇順）
+    /// 
+    /// 発射可能なランチャーの中から最適なものを選択します。
+    /// 選択基準: クールダウン最短 → ターゲットまでの距離最短 → ID昇順
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_position` - ターゲットの位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// 選択されたランチャーのインデックス、発射可能なランチャーがない場合はNone
     pub fn select_best_launcher(&self, target_position: Position3D) -> Option<usize> {
         let mut best_index = None;
         let mut best_cooldown = f64::INFINITY;
@@ -388,6 +560,10 @@ impl LauncherBattery {
     }
 
     /// バッテリー全体の統計
+    /// 
+    /// # 戻り値
+    /// 
+    /// バッテリー全体の統計情報を含むBatteryStats構造体
     pub fn get_battery_stats(&self) -> BatteryStats {
         let total_launchers = self.launchers.len();
         let active_launchers = self.launchers.iter().filter(|l| l.is_active()).count();
@@ -405,11 +581,19 @@ impl LauncherBattery {
     }
 }
 
+/// バッテリーの統計情報
+/// 
+/// ランチャーバッテリー全体の現在状態をまとめた統計情報です。
 #[derive(Debug, Clone)]
 pub struct BatteryStats {
+    /// 総ランチャー数
     pub total_launchers: usize,
+    /// アクティブなランチャー数
     pub active_launchers: usize,
+    /// 発射準備完了ランチャー数
     pub ready_launchers: usize,
+    /// 総ミサイル数
     pub total_missiles: u32,
+    /// 総発射数
     pub total_launches: usize,
 }

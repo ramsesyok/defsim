@@ -6,28 +6,58 @@ use crate::models::{
 };
 
 /// 優先度付けされたターゲット情報
+/// 
+/// ターゲットの脅威度を評価するための情報を格納します。
+/// 優先度はTgo（Time-to-go）を基準とし、タイブレーカーとしてXY距離、ID順を使用します。
 #[derive(Debug, Clone)]
 pub struct TargetPriority {
+    /// ターゲットの一意識別子
     pub target_id: String,
-    pub tgo: f64,              // Time-to-go
-    pub distance_xy: f64,      // XY距離
-    pub assigned_missiles: u32, // 割り当て済みミサイル数
-    pub target_endurance: u32,  // ターゲットの耐久値
+    /// Time-to-go: ターゲットが指揮所に到達するまでの予想時間（秒）
+    pub tgo: f64,
+    /// XY平面での指揮所からの距離（メートル）
+    pub distance_xy: f64,
+    /// このターゲットに既に割り当てられているミサイル数
+    pub assigned_missiles: u32,
+    /// ターゲットの耐久値（破壊に必要なミサイル数）
+    pub target_endurance: u32,
 }
 
 /// 指揮所エージェント
+/// 
+/// 防御システムの中央統制を行うエージェントです。
+/// センサーからのターゲット情報を基に脅威度を評価し、
+/// ランチャーに対してミサイル発射指示を出します。
 #[derive(Debug)]
 pub struct CommandPost {
+    /// 指揮所の一意識別子
     pub id: String,
+    /// 指揮所の3次元位置
     pub position: Position3D,
-    pub arrival_radius: f64,      // 突破判定の到達範囲[m]
+    /// ターゲットの突破判定に使用される到達範囲（メートル）
+    pub arrival_radius: f64,
+    /// 指揮所の現在のステータス
     pub status: AgentStatus,
-    pub detected_targets: Vec<String>, // センサーから通知されたターゲットID
-    pub missile_assignments: HashMap<String, Vec<String>>, // target_id -> [missile_id]
-    pub target_priorities: Vec<TargetPriority>, // 優先度順のターゲットリスト
+    /// センサーから通知されたターゲットIDのリスト
+    pub detected_targets: Vec<String>,
+    /// ターゲットIDからミサイルIDのリストへのマッピング
+    pub missile_assignments: HashMap<String, Vec<String>>,
+    /// 優先度順に並べられたターゲットのリスト
+    pub target_priorities: Vec<TargetPriority>,
 }
 
 impl CommandPost {
+    /// 新しい指揮所を作成します
+    /// 
+    /// # 引数
+    /// 
+    /// * `id` - 指揮所の一意識別子
+    /// * `position` - 指揮所の3次元位置
+    /// * `arrival_radius` - ターゲットの突破判定範囲（メートル）
+    /// 
+    /// # 戻り値
+    /// 
+    /// 初期化された指揮所インスタンス
     pub fn new(id: String, position: Position3D, arrival_radius: f64) -> Self {
         Self {
             id,
@@ -41,11 +71,22 @@ impl CommandPost {
     }
 
     /// センサーからのターゲット検知情報を受信
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_ids` - 検知されたターゲットIDのリスト
     pub fn receive_detections(&mut self, target_ids: Vec<String>) {
         self.detected_targets = target_ids;
     }
 
     /// ターゲットの優先度を計算（Tgo基準）
+    /// 
+    /// 検知されたアクティブなターゲットに対して脅威度を計算し、
+    /// Tgo（Time-to-go）の昇順、XY距離の昇順、ID昇順でソートします。
+    /// 
+    /// # 引数
+    /// 
+    /// * `targets` - 評価対象のターゲットのスライス
     pub fn calculate_target_priorities(&mut self, targets: &[Target]) {
         self.target_priorities.clear();
 
@@ -79,12 +120,34 @@ impl CommandPost {
         });
     }
 
-    /// Tgo計算
+    /// Tgo（Time-to-go）を計算
+    /// 
+    /// ターゲットが指揮所に到達するまでの予想時間を算出します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target` - 計算対象のターゲット
+    /// 
+    /// # 戻り値
+    /// 
+    /// 到達予想時間（秒）
     fn calculate_tgo(&self, target: &Target) -> f64 {
         target.calculate_time_to_go()
     }
 
     /// ランチャーを選定（クールダウン最短 → 距離最短 → ID昇順）
+    /// 
+    /// 発射可能なランチャーの中から、クールダウン最短、
+    /// 距離最短、ID昇順の優先度で最適ランチャーを選定します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `launchers` - 選定対象ランチャーのスライス
+    /// * `target_position` - ターゲットの位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// 選定されたランチャーのインデックス、発射可能なランチャーがない場合はNone
     pub fn select_best_launcher(
         &self, 
         launchers: &[Box<dyn IPlatform>], 
@@ -121,6 +184,13 @@ impl CommandPost {
     }
 
     /// ミサイル割り当ての実行
+    /// 
+    /// 優先度順のターゲットに対して、耐久度を超えない範囲で
+    /// ミサイルを順次割り当てて発射します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `launchers` - ミサイル発射を行うランチャーの可変スライス
     pub fn execute_assignments(&mut self, launchers: &mut [Box<dyn IPlatform>]) {
         for priority in &self.target_priorities {
             let assigned_count = priority.assigned_missiles;
@@ -154,6 +224,12 @@ impl CommandPost {
 
 
     /// ターゲットリストの更新
+    /// 
+    /// アクティブなターゲットの情報をもとに優先度リストを再構築します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `targets` - 更新対象のターゲットの参照ベクター
     pub fn update_target_list(&mut self, targets: Vec<&Target>) {
         self.target_priorities.clear();
         
@@ -187,6 +263,16 @@ impl CommandPost {
     }
 
     /// ミサイル発射割り当てを取得
+    /// 
+    /// 指定されたランチャーに対して、発射すべきミサイルの割り当て情報を返します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `launcher_id` - ランチャーのID
+    /// 
+    /// # 戻り値
+    /// 
+    /// ミサイル割り当て情報、割り当て可能なターゲットがない場合はNone
     pub fn get_missile_assignment(&mut self, launcher_id: &str) -> Option<crate::simulation::MissileAssignment> {
         for priority in &self.target_priorities {
             let assigned_count = priority.assigned_missiles;
@@ -202,6 +288,13 @@ impl CommandPost {
     }
 
     /// ミサイルが消滅した際の処理
+    /// 
+    /// 指定されたミサイルIDを割り当てリストから除去します。
+    /// これにより割り当て数が正しく管理されます。
+    /// 
+    /// # 引数
+    /// 
+    /// * `missile_id` - 消滅したミサイルのID
     pub fn on_missile_destroyed(&mut self, missile_id: String) {
         for (_, missile_ids) in self.missile_assignments.iter_mut() {
             missile_ids.retain(|id| id != &missile_id);
@@ -209,6 +302,13 @@ impl CommandPost {
     }
 
     /// ターゲットが消滅した際の処理
+    /// 
+    /// 指定されたターゲットに関連するすべての情報をクリアします。
+    /// ミサイル割り当てと検知リストから除去されます。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_id` - 消滅したターゲットのID
     pub fn on_target_destroyed(&mut self, target_id: String) {
         self.missile_assignments.remove(&target_id);
         self.detected_targets.retain(|id| id != &target_id);

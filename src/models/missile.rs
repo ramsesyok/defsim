@@ -4,23 +4,37 @@ use crate::models::{
 };
 
 /// ミサイル誘導フェーズ
+/// 
+/// ミサイルの飛翼段階を表し、各段階で異なる誘導アルゴリズムや行動が適用されます。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GuidancePhase {
-    Boost,        // ブースト段階（初期加速）
-    Midcourse,    // 中間段階
-    Endgame,      // 終盤段階（ターゲット近接）
+    /// ブースト段階（初期加速フェーズ）
+    Boost,
+    /// 中間段階（巡航フェーズ）
+    Midcourse,
+    /// 終盤段階（ターゲット近接フェーズ）
+    Endgame,
 }
 
 /// ミサイル終了理由
+/// 
+/// ミサイルがアクティブ状態から終了した理由を表します。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MissileEndReason {
-    Hit,           // 命中
-    SelfDestruct,  // 自爆
-    TargetLost,    // ターゲット消失
-    OutOfBounds,   // 領域外
+    /// ターゲットに命中した
+    Hit,
+    /// 自爆した（miss distanceが継続的に増加したため）
+    SelfDestruct,
+    /// ターゲットが消失した
+    TargetLost,
+    /// シミュレーション領域外に出た
+    OutOfBounds,
 }
 
 /// ミサイルエージェント
+/// 
+/// ランチャーから発射され、ターゲットに向かって誘導されるミサイルです。
+/// True 3D比例航法(N=3-4)を使用し、終盤でのmiss distance増加時に自爆します。
 #[derive(Debug, Clone)]
 pub struct Missile {
     pub id: String,
@@ -30,46 +44,85 @@ pub struct Missile {
     pub target_id: String,
     pub status: AgentStatus,
     
-    // 性能パラメータ
-    pub initial_speed: f64,      // 初速[m/s]
-    pub max_speed: f64,          // 最大速度[m/s]
-    pub max_accel: f64,          // 最大加速度[m/s²]
-    pub max_turn_rate: f64,      // 最大旋回レート[deg/s]
-    pub intercept_radius: f64,   // 迎撃判定距離[m]
+    /// 初速（m/s）
+    pub initial_speed: f64,
+    /// 最大速度（m/s）
+    pub max_speed: f64,
+    /// 最大加速度（m/s²）
+    pub max_accel: f64,
+    /// 最大旋回レート（deg/s）
+    pub max_turn_rate: f64,
+    /// 迎撃判定距離（m）
+    pub intercept_radius: f64,
     
-    // 誘導システム
-    pub guidance_n: f64,         // 比例航法定数（通常3-4）
+    /// 比例航法定数（通常3-4）
+    pub guidance_n: f64,
+    /// 現在の誘導フェーズ
     pub guidance_phase: GuidancePhase,
-    pub endgame_threshold: f64,  // 終盤判定距離閾値（intercept_radius × 2）
+    /// 終盤判定距離閾値（intercept_radius × 倍数）
+    pub endgame_threshold: f64,
     
-    // 自爆判定用
-    pub miss_distance_history: Vec<f64>, // miss distance履歴
-    pub miss_increase_count: u32,        // miss distance増加連続回数
-    pub endgame_miss_increase_ticks: u32, // 終盤でのmiss distance増加判定ティック数
+    /// miss distanceの履歴（自爆判定用）
+    pub miss_distance_history: Vec<f64>,
+    /// miss distance増加の連続回数
+    pub miss_increase_count: u32,
+    /// 終盤でのmiss distance増加判定ティック数
+    pub endgame_miss_increase_ticks: u32,
     
-    // 姿勢と制御
-    pub attitude: Attitude3D,     // 姿勢
-    pub turn_rate: f64,          // 現在の旋回レート[deg/s]
+    /// ミサイルの姿勢
+    pub attitude: Attitude3D,
+    /// 現在の旋回レート（deg/s）
+    pub turn_rate: f64,
     
-    // 統計・記録
-    pub flight_time: f64,        // 飛翔時間[s]
-    pub total_distance: f64,     // 累積飛行距離[m]
-    pub end_reason: Option<MissileEndReason>, // 終了理由
+    /// 飛翔時間（秒）
+    pub flight_time: f64,
+    /// 累積飛行距離（m）
+    pub total_distance: f64,
+    /// 終了理由
+    pub end_reason: Option<MissileEndReason>,
 }
 
 /// 3次元姿勢
+/// 
+/// ミサイルの空間内での姿勢をオイラー角で表現します。
 #[derive(Debug, Clone, Copy)]
 pub struct Attitude3D {
-    pub pitch: f64,   // ピッチ角[deg] (上下)
-    pub yaw: f64,     // ヨー角[deg] (左右)
-    pub roll: f64,    // ロール角[deg] (回転)
+    /// ピッチ角（上下方向の傾き、度）
+    pub pitch: f64,
+    /// ヨー角（左右方向の傾き、度）
+    pub yaw: f64,
+    /// ロール角（回転角、度）
+    pub roll: f64,
 }
 
 impl Attitude3D {
+    /// 新しい3次元姿勢を作成
+    /// 
+    /// # 引数
+    /// 
+    /// * `pitch` - ピッチ角（度）
+    /// * `yaw` - ヨー角（度）
+    /// * `roll` - ロール角（度）
+    /// 
+    /// # 戻り値
+    /// 
+    /// 新しいAttitude3Dインスタンス
     pub fn new(pitch: f64, yaw: f64, roll: f64) -> Self {
         Self { pitch, yaw, roll }
     }
     
+    /// 速度ベクトルから姿勢を計算
+    /// 
+    /// 速度ベクトルの方向からピッチ角とヨー角を計算します。
+    /// ロール角は簡略化のため0に設定されます。
+    /// 
+    /// # 引数
+    /// 
+    /// * `velocity` - 姿勢計算の基準となる速度ベクトル
+    /// 
+    /// # 戻り値
+    /// 
+    /// 計算された姿勢
     pub fn from_velocity(velocity: &Velocity3D) -> Self {
         let speed_xy = velocity.magnitude_xy();
         let pitch = if speed_xy > 0.0 {
@@ -89,6 +142,17 @@ impl Attitude3D {
 }
 
 impl Missile {
+    /// 新しいミサイルを作成します
+    /// 
+    /// # 引数
+    /// 
+    /// * `id` - ミサイルの一意識別子
+    /// * `launch_position` - 発射位置
+    /// * `target_id` - ターゲットのID
+    /// 
+    /// # 戻り値
+    /// 
+    /// 初期化されたミサイルインスタンス（initializeメソッドで詳細設定が必要）
     pub fn new(
         id: String,
         launch_position: Position3D,
@@ -125,6 +189,17 @@ impl Missile {
     }
 
     /// True 3D比例航法による誘導計算
+    /// 
+    /// 真の3次元比例航法を使用して、ターゲットへの誘導加速度を計算します。
+    /// 比例航法定数NとLOS（Line-of-Sight）角速度を使用して計算します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_position` - ターゲットの現在位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// 誘導に必要な加速度ベクトル
     pub fn calculate_proportional_navigation(&mut self, target_position: Position3D) -> Acceleration3D {
         let relative_position = target_position - self.position;
         let relative_distance = relative_position.magnitude();
@@ -169,6 +244,17 @@ impl Missile {
     }
 
     /// 直接追尾（緊急時用）
+    /// 
+    /// 比例航法が機能しない場合のフォールバックとして、
+    /// ターゲットに直接向かう誘導を行います。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_position` - ターゲットの現在位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// ターゲット方向への最大加速度ベクトル
     pub fn calculate_direct_pursuit(&self, target_position: Position3D) -> Acceleration3D {
         let direction = target_position - self.position;
         let distance = direction.magnitude();
@@ -187,6 +273,13 @@ impl Missile {
     }
 
     /// 誘導フェーズの更新
+    /// 
+    /// ミサイルの現在状態に応じて誘導フェーズを遷移させます。
+    /// Boost → Midcourse → Endgame の順で遷移します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_position` - ターゲットの現在位置
     pub fn update_guidance_phase(&mut self, target_position: Position3D) {
         let distance = self.position.distance_3d(&target_position);
         
@@ -208,6 +301,17 @@ impl Missile {
     }
 
     /// miss distanceの追跡と自爆判定
+    /// 
+    /// ターゲットへのmiss distanceを記録し、終盤フェーズで
+    /// miss distanceが連続して増加した場合に自爆を判定します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_position` - ターゲットの現在位置
+    /// 
+    /// # 戻り値
+    /// 
+    /// 自爆した場合はtrue、継続する場合はfalse
     pub fn track_miss_distance(&mut self, target_position: Position3D) -> bool {
         let miss_distance = self.calculate_miss_distance(target_position);
         
@@ -243,6 +347,13 @@ impl Missile {
     }
 
     /// 姿勢の更新
+    /// 
+    /// 速度ベクトルから理想的な姿勢を計算し、
+    /// 最大旋回レートで制限して姿勢を更新します。
+    /// 
+    /// # 引数
+    /// 
+    /// * `dt` - 時間ステップ（秒）
     pub fn update_attitude(&mut self, dt: f64) {
         let new_attitude = Attitude3D::from_velocity(&self.velocity);
         
@@ -270,6 +381,14 @@ impl Missile {
     }
 
     /// 運動状態の更新（設計仕様の手順に従う）
+    /// 
+    /// 設計仕様に従った手順でミサイルの運動を更新します:
+    /// 1. 誘導計算 → 2. 加速度飽和 → 3. 速度積分 → 4. 速度クランプ → 5. 位置更新 → 6. 姿勢更新
+    /// 
+    /// # 引数
+    /// 
+    /// * `dt` - 時間ステップ（秒）
+    /// * `target_position` - ターゲットの現在位置
     pub fn update_kinematics(&mut self, dt: f64, target_position: Position3D) {
         // 1. 誘導計算
         self.acceleration = match self.guidance_phase {
@@ -311,6 +430,13 @@ impl Missile {
     }
 
     /// 各種チェックの実行
+    /// 
+    /// ミサイルの状態をチェックし、必要に応じて終了条件を判定します。
+    /// 領域外チェック、誘導フェーズ更新、miss distance追跡、衝突判定を行います。
+    /// 
+    /// # 引数
+    /// 
+    /// * `target_position` - ターゲットの現在位置
     pub fn perform_checks(&mut self, target_position: Position3D) {
         // 領域外チェック
         if !self.position.is_in_simulation_bounds() {
