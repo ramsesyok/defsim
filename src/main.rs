@@ -1,11 +1,14 @@
 mod models;
 mod scenario;
 mod simulation;
+mod logging;
 
 use clap::{Arg, Command};
 use models::{Position3D as ModelPosition3D, *};
 use scenario::*;
 use simulation::SimulationEngine;
+use logging::{LogConfig, LogOutput, init_logging, parse_log_level, ensure_log_directory};
+use tracing::{info, warn, error, debug, trace};
 
 fn main() {
     // コマンドライン引数の解析
@@ -46,20 +49,86 @@ fn main() {
                 .action(clap::ArgAction::Count)
                 .help("詳細出力レベル (-v: 基本, -vv: 詳細, -vvv: デバッグ)")
         )
+        .arg(
+            Arg::new("log-level")
+                .long("log-level")
+                .value_name("LEVEL")
+                .help("ログレベルを指定 (trace, debug, info, warn, error)")
+                .default_value("info")
+        )
+        .arg(
+            Arg::new("log-output")
+                .long("log-output")
+                .value_name("OUTPUT")
+                .help("ログ出力先を指定 (console, file, both)")
+                .default_value("both")
+        )
+        .arg(
+            Arg::new("log-dir")
+                .long("log-dir")
+                .value_name("DIR")
+                .help("ログファイルの出力ディレクトリ")
+                .default_value("logs")
+        )
         .get_matches();
 
-    println!("防衛シミュレーション (Defense Simulation) - defsim v0.1.0");
-    println!();
-
-    // 詳細レベルの設定
+    // ログ設定の初期化
+    let log_level_str = matches.get_one::<String>("log-level").unwrap();
+    let log_output_str = matches.get_one::<String>("log-output").unwrap();
+    let log_dir = matches.get_one::<String>("log-dir").unwrap();
     let verbose_level = matches.get_count("verbose");
+
+    // ログレベルを verbose_level も考慮して決定
+    let log_level = if verbose_level > 0 {
+        match verbose_level {
+            1 => tracing::Level::INFO,
+            2 => tracing::Level::DEBUG,
+            _ => tracing::Level::TRACE,
+        }
+    } else {
+        parse_log_level(log_level_str)
+    };
+
+    let log_output = match log_output_str.parse::<LogOutput>() {
+        Ok(output) => output,
+        Err(e) => {
+            eprintln!("エラー: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    // ログディレクトリ作成（ファイル出力が必要な場合）
+    if matches!(log_output, LogOutput::File | LogOutput::Both) {
+        if let Err(e) = ensure_log_directory(log_dir) {
+            eprintln!("ログディレクトリ作成エラー: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+    let log_config = LogConfig {
+        level: log_level,
+        output: log_output,
+        log_dir: log_dir.clone(),
+        file_prefix: "defsim".to_string(),
+    };
+
+    // ログ初期化
+    if let Err(e) = init_logging(log_config) {
+        eprintln!("ログ初期化エラー: {}", e);
+        std::process::exit(1);
+    }
+
+    info!("防衛シミュレーション (Defense Simulation) - defsim v0.1.0");
+    
     if verbose_level > 0 {
-        println!("詳細出力レベル: {}", verbose_level);
+        info!("詳細出力レベル: {}", verbose_level);
+        debug!("ログレベル: {:?}", log_level);
+        debug!("ログ出力先: {:?}", log_output);
     }
 
     // テストモードの実行
     if matches.get_flag("test") {
-        println!("=== エージェントモデルテストモード ===");
+        info!("=== エージェントモデルテストモード ===");
         test_agent_models();
         return;
     }
@@ -69,11 +138,11 @@ fn main() {
         match run_scenario(scenario_path, matches.get_flag("info"), verbose_level) {
             Ok(_) => {
                 if verbose_level > 0 {
-                    println!("シナリオ実行が正常に完了しました。");
+                    info!("シナリオ実行が正常に完了しました。");
                 }
             }
             Err(e) => {
-                eprintln!("エラー: {}", e);
+                error!("エラー: {}", e);
                 std::process::exit(1);
             }
         }
@@ -84,7 +153,7 @@ fn main() {
 }
 
 fn test_agent_models() {
-    println!("\n=== エージェントモデルのテスト ===");
+    info!("\n=== エージェントモデルのテスト ===");
     
     // 指揮所の作成
     let command_post_pos = ModelPosition3D::new(800000.0, -800000.0, 0.0);
@@ -93,7 +162,7 @@ fn test_agent_models() {
         command_post_pos,
         20000.0, // 到達範囲
     );
-    println!("指揮所が作成されました: {}", command_post.get_id());
+    info!("指揮所が作成されました: {}", command_post.get_id());
     
     // センサーの作成
     let sensor_pos = ModelPosition3D::new(750000.0, -900000.0, 50.0);
@@ -101,7 +170,7 @@ fn test_agent_models() {
         "S001".to_string(),
         sensor_pos,
     );
-    println!("センサーが作成されました: {}", sensor.get_id());
+    info!("センサーが作成されました: {}", sensor.get_id());
     
     // ランチャーの作成
     let launcher_pos = ModelPosition3D::new(780000.0, -850000.0, 20.0);
@@ -109,7 +178,7 @@ fn test_agent_models() {
         "L001".to_string(),
         launcher_pos,
     );
-    println!("ランチャーが作成されました: {}", launcher.get_id());
+    info!("ランチャーが作成されました: {}", launcher.get_id());
     
     // ターゲットグループの作成
     let group_center = ModelPosition3D::new(-800000.0, 600000.0, 3000.0);
@@ -128,7 +197,7 @@ fn test_agent_models() {
     };
     
     let targets = target_group.generate_targets();
-    println!("ターゲットグループが作成されました: {} 機の敵", targets.len());
+    info!("ターゲットグループが作成されました: {} 機の敵", targets.len());
     
     // ミサイルの作成テスト
     let missile = Missile::new(
@@ -136,9 +205,9 @@ fn test_agent_models() {
         launcher_pos,
         "G001_wave1_T001".to_string(),
     );
-    println!("ミサイルが作成されました: {}", missile.get_id());
+    info!("ミサイルが作成されました: {}", missile.get_id());
     
-    println!("\n全てのエージェントモデルが正常に作成されました！");
+    info!("\n全てのエージェントモデルが正常に作成されました！");
 }
 
 /// シナリオファイルを読み込んで実行
@@ -147,7 +216,7 @@ fn run_scenario(scenario_path: &str, info_only: bool, verbose_level: u8) -> Resu
     let scenario = ScenarioConfig::from_file(scenario_path)?;
     
     if verbose_level > 0 {
-        println!("シナリオファイル読み込み完了: {}", scenario_path);
+        info!("シナリオファイル読み込み完了: {}", scenario_path);
     }
     
     // 情報表示のみの場合
@@ -166,14 +235,12 @@ fn run_scenario(scenario_path: &str, info_only: bool, verbose_level: u8) -> Resu
 fn execute_scenario(scenario: ScenarioConfig, verbose_level: u8) -> Result<(), Box<dyn std::error::Error>> {
     // 基本情報表示
     scenario.print_summary();
-    println!();
     
     if verbose_level > 0 {
-        println!("シミュレーション設定:");
-        println!("  時間刻み: {:.3}秒", scenario.sim.dt_s);
-        println!("  最大時間: {:.1}秒", scenario.sim.t_max_s);
-        println!("  シード値: {}", scenario.sim.seed);
-        println!();
+        debug!("シミュレーション設定:");
+        debug!("  時間刻み: {:.3}秒", scenario.sim.dt_s);
+        debug!("  最大時間: {:.1}秒", scenario.sim.t_max_s);
+        debug!("  シード値: {}", scenario.sim.seed);
     }
     
     // シミュレーションエンジンの作成と初期化
@@ -188,26 +255,27 @@ fn execute_scenario(scenario: ScenarioConfig, verbose_level: u8) -> Result<(), B
 
 /// デフォルトヘルプとシナリオ一覧を表示
 fn show_default_help() {
-    println!("使用方法:");
-    println!("  defsim [オプション]");
-    println!();
-    println!("オプション:");
-    println!("  -s, --scenario <FILE>  シナリオファイルを指定して実行");
-    println!("  -i, --info             シナリオ情報のみ表示");
-    println!("  -t, --test             エージェントモデルのテスト実行");
-    println!("  -v, --verbose          詳細出力 (複数指定で詳細レベル上昇)");
-    println!("  -h, --help             このヘルプを表示");
-    println!();
-    println!("利用可能なシナリオファイル:");
-    println!("  scenarios/scenario_simple_test.yaml     - 基本テスト用");
-    println!("  scenarios/scenario_plane.yaml           - 標準シナリオ");
-    println!("  scenarios/scenario_multi_wave.yaml      - 多波攻撃シナリオ");
-    println!("  scenarios/scenario_performance_test.yaml - 性能テスト用");
-    println!("  scenarios/scenario_validation_test.yaml - 検証テスト用");
-    println!();
-    println!("例:");
-    println!("  defsim -s scenarios/scenario_simple_test.yaml");
-    println!("  defsim -s scenarios/scenario_plane.yaml -v");
-    println!("  defsim -s scenarios/scenario_multi_wave.yaml -i");
-    println!("  defsim --test");
+    info!("使用方法:");
+    info!("  defsim [オプション]");
+    info!("オプション:");
+    info!("  -s, --scenario <FILE>  シナリオファイルを指定して実行");
+    info!("  -i, --info             シナリオ情報のみ表示");
+    info!("  -t, --test             エージェントモデルのテスト実行");
+    info!("  -v, --verbose          詳細出力 (複数指定で詳細レベル上昇)");
+    info!("  -h, --help             このヘルプを表示");
+    info!("  --log-level <LEVEL>    ログレベル指定 (trace, debug, info, warn, error)");
+    info!("  --log-output <OUTPUT>  ログ出力先指定 (console, file, both)");
+    info!("  --log-dir <DIR>        ログファイル出力ディレクトリ");
+    info!("利用可能なシナリオファイル:");
+    info!("  scenarios/scenario_simple_test.yaml     - 基本テスト用");
+    info!("  scenarios/scenario_plane.yaml           - 標準シナリオ");
+    info!("  scenarios/scenario_multi_wave.yaml      - 多波攻撃シナリオ");
+    info!("  scenarios/scenario_performance_test.yaml - 性能テスト用");
+    info!("  scenarios/scenario_validation_test.yaml - 検証テスト用");
+    info!("例:");
+    info!("  defsim -s scenarios/scenario_simple_test.yaml");
+    info!("  defsim -s scenarios/scenario_plane.yaml -v");
+    info!("  defsim -s scenarios/scenario_multi_wave.yaml -i");
+    info!("  defsim --test");
+    info!("  defsim -s scenarios/scenario_plane.yaml --log-level debug --log-output file");
 }

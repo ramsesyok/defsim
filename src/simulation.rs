@@ -45,6 +45,7 @@
 
 use crate::models::{Position3D as ModelPosition3D, *};
 use crate::scenario::*;
+use tracing::{info, warn, error, debug, trace};
 
 pub struct SimulationEngine {
     pub current_time: f64,
@@ -99,7 +100,7 @@ impl SimulationEngine {
     
     pub fn initialize(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if self.verbose_level > 0 {
-            println!("シミュレーションエンジンを初期化中...");
+            info!("シミュレーションエンジンを初期化中...");
         }
         
         self.initialize_command_post()?;
@@ -108,11 +109,11 @@ impl SimulationEngine {
         self.initialize_enemy_groups()?;
         
         if self.verbose_level > 0 {
-            println!("初期化完了:");
-            println!("  指揮所: 1基");
-            println!("  センサー: {}基", self.sensors.len());
-            println!("  ランチャー: {}基", self.launchers.len());
-            println!("  敵機: {}機", self.targets.len());
+            info!("初期化完了:");
+            info!("  指揮所: 1基");
+            info!("  センサー: {}基", self.sensors.len());
+            info!("  ランチャー: {}基", self.launchers.len());
+            info!("  敵機: {}機", self.targets.len());
         }
         
         Ok(())
@@ -122,7 +123,7 @@ impl SimulationEngine {
         self.command_post.initialize(&self.scenario_config);
         
         if self.verbose_level > 1 {
-            println!("指揮所初期化: {} (位置: {:.0}, {:.0})", 
+            debug!("指揮所初期化: {} (位置: {:.0}, {:.0})", 
                     self.command_post.get_id(),
                     self.command_post.position.x,
                     self.command_post.position.y);
@@ -147,7 +148,7 @@ impl SimulationEngine {
             sensor.initialize(&self.scenario_config);
             
             if self.verbose_level > 1 {
-                println!("センサー初期化: {} (範囲: {:.0}m)", 
+                debug!("センサー初期化: {} (範囲: {:.0}m)", 
                         sensor.get_id(), 
                         sensor_config.range_m);
             }
@@ -174,7 +175,7 @@ impl SimulationEngine {
             launcher.initialize(&self.scenario_config);
             
             if self.verbose_level > 1 {
-                println!("ランチャー初期化: {} (ミサイル: {}発)", 
+                debug!("ランチャー初期化: {} (ミサイル: {}発)", 
                         launcher.get_id(), 
                         launcher_config.missiles_loaded);
             }
@@ -219,7 +220,7 @@ impl SimulationEngine {
             }
             
             if self.verbose_level > 1 {
-                println!("敵グループ初期化: {} ({}機, 出現時刻: {:.1}秒)", 
+                debug!("敵グループ初期化: {} ({}機, 出現時刻: {:.1}秒)", 
                         group_config.id, 
                         group_config.count, 
                         group_config.spawn_time_s);
@@ -230,18 +231,18 @@ impl SimulationEngine {
     }
     
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        println!("=== シミュレーション実行開始 ===");
+        info!("=== シミュレーション実行開始 ===");
         
         while self.current_time < self.max_time {
             self.step();
             
             if self.verbose_level > 2 {
-                println!("時刻: {:.1}秒 (ステップ: {})", self.current_time, self.step_count);
+                trace!("時刻: {:.1}秒 (ステップ: {})", self.current_time, self.step_count);
             }
             
             if self.step_count % 100 == 0 && self.verbose_level > 0 {
                 let progress = (self.current_time / self.max_time) * 100.0;
-                println!("進行状況: {:.1}% ({:.1}/{:.1}秒)", progress, self.current_time, self.max_time);
+                info!("進行状況: {:.1}% ({:.1}/{:.1}秒)", progress, self.current_time, self.max_time);
             }
             
             if self.step_count > 10000 {
@@ -249,9 +250,9 @@ impl SimulationEngine {
             }
         }
         
-        println!("=== シミュレーション完了 ===");
-        println!("実行時間: {:.1}秒", self.current_time);
-        println!("総ステップ数: {}", self.step_count);
+        info!("=== シミュレーション完了 ===");
+        info!("実行時間: {:.1}秒", self.current_time);
+        info!("総ステップ数: {}", self.step_count);
         
         Ok(())
     }

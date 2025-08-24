@@ -38,6 +38,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::fs;
+use tracing::{info, warn, error, debug};
 
 /// シナリオメタデータ
 #[derive(Debug, Deserialize, Serialize)]
@@ -272,32 +273,29 @@ impl ScenarioConfig {
     
     /// シナリオの概要を表示
     pub fn print_summary(&self) {
-        println!("=== シナリオ情報 ===");
-        println!("名前: {}", self.meta.name);
-        println!("説明: {}", self.meta.description);
-        println!("バージョン: {}", self.meta.version);
-        println!();
+        info!("=== シナリオ情報 ===");
+        info!("名前: {}", self.meta.name);
+        info!("説明: {}", self.meta.description);
+        info!("バージョン: {}", self.meta.version);
         
-        println!("=== シミュレーション設定 ===");
-        println!("時間刻み: {:.3}秒", self.sim.dt_s);
-        println!("最大時間: {:.1}秒 ({:.1}分)", self.sim.t_max_s, self.sim.t_max_s / 60.0);
-        println!("シード値: {}", self.sim.seed);
-        println!();
+        info!("=== シミュレーション設定 ===");
+        info!("時間刻み: {:.3}秒", self.sim.dt_s);
+        info!("最大時間: {:.1}秒 ({:.1}分)", self.sim.t_max_s, self.sim.t_max_s / 60.0);
+        info!("シード値: {}", self.sim.seed);
         
-        println!("=== 友軍戦力 ===");
-        println!("センサー: {}基", self.friendly_forces.sensors.len());
-        println!("ランチャー: {}基", self.friendly_forces.launchers.len());
+        info!("=== 友軍戦力 ===");
+        info!("センサー: {}基", self.friendly_forces.sensors.len());
+        info!("ランチャー: {}基", self.friendly_forces.launchers.len());
         let total_missiles: u32 = self.friendly_forces.launchers.iter().map(|l| l.missiles_loaded).sum();
-        println!("総ミサイル数: {}発", total_missiles);
-        println!();
+        info!("総ミサイル数: {}発", total_missiles);
         
-        println!("=== 敵軍戦力 ===");
-        println!("敵グループ数: {}", self.enemy_forces.groups.len());
+        info!("=== 敵軍戦力 ===");
+        info!("敵グループ数: {}", self.enemy_forces.groups.len());
         let total_enemies: u32 = self.enemy_forces.groups.iter().map(|g| g.count).sum();
-        println!("総敵機数: {}機", total_enemies);
+        info!("総敵機数: {}機", total_enemies);
         
         for group in &self.enemy_forces.groups {
-            println!("  {}: {}機 (出現時刻: {:.1}秒)", group.id, group.count, group.spawn_time_s);
+            info!("  {}: {}機 (出現時刻: {:.1}秒)", group.id, group.count, group.spawn_time_s);
         }
     }
 }
