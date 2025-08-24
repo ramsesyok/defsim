@@ -2,6 +2,7 @@ use crate::models::{
     traits::{IAgent, IMovable},
     common::{Position3D, Velocity3D, AgentStatus},
 };
+use tracing::{info, warn, error};
 
 /// 敵ターゲットエージェント
 /// 
@@ -77,8 +78,33 @@ impl Target {
     /// * `damage` - 受けるダメージ量
     pub fn take_damage(&mut self, damage: u32) {
         if self.status == AgentStatus::Active {
+            let previous_endurance = self.endurance;
             self.endurance = self.endurance.saturating_sub(damage);
+            
+            info!(
+                target_id = %self.id,
+                target_group = %self.group_id,
+                position_x = self.position.x,
+                position_y = self.position.y,
+                position_z = self.position.z,
+                damage_received = damage,
+                previous_endurance = previous_endurance,
+                current_endurance = self.endurance,
+                max_endurance = self.max_endurance,
+                "TARGET_DAMAGED: ターゲットがダメージを受けました"
+            );
+            
             if self.endurance == 0 {
+                error!(
+                    target_id = %self.id,
+                    target_group = %self.group_id,
+                    position_x = self.position.x,
+                    position_y = self.position.y,
+                    position_z = self.position.z,
+                    final_damage = damage,
+                    total_damage_taken = self.max_endurance,
+                    "TARGET_DESTROYED: ターゲットが破壊されました"
+                );
                 self.status = AgentStatus::Destroyed;
             }
         }
@@ -92,6 +118,16 @@ impl Target {
         if self.status == AgentStatus::Active {
             let distance_to_destination = self.position.distance_xy(&self.destination);
             if distance_to_destination <= self.arrival_radius {
+                warn!(
+                    target_id = %self.id,
+                    target_group = %self.group_id,
+                    position_x = self.position.x,
+                    position_y = self.position.y,
+                    position_z = self.position.z,
+                    distance_to_target = distance_to_destination,
+                    arrival_radius = self.arrival_radius,
+                    "TARGET_REACHED: ターゲットが目的地に到達しました"
+                );
                 self.status = AgentStatus::Reached;
             }
         }
@@ -103,6 +139,17 @@ impl Target {
     /// 領域外の場合は非アクティブ状態にして消滅させます。
     pub fn check_out_of_bounds(&mut self) {
         if self.status == AgentStatus::Active && !self.position.is_in_simulation_bounds() {
+            info!(
+                target_id = %self.id,
+                target_group = %self.group_id,
+                position_x = self.position.x,
+                position_y = self.position.y,
+                position_z = self.position.z,
+                simulation_bounds_x = "±1,000,000m",
+                simulation_bounds_y = "±1,000,000m", 
+                simulation_bounds_z = "0-5,000m",
+                "TARGET_OUT_OF_BOUNDS: ターゲットがシミュレーション領域外に出ました"
+            );
             self.status = AgentStatus::Inactive; // 領域外で消滅
         }
     }

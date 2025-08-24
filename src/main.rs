@@ -208,6 +208,51 @@ fn test_agent_models() {
     info!("ミサイルが作成されました: {}", missile.get_id());
     
     info!("\n全てのエージェントモデルが正常に作成されました！");
+    
+    // ターゲットイベントログのテスト
+    info!("=== ターゲットイベントログテスト開始 ===");
+    
+    // 1つ目のターゲットでダメージテスト
+    if !targets.is_empty() {
+        let mut test_target = targets[0].clone();
+        // テスト用にアクティブ状態にする
+        test_target.status = AgentStatus::Active;
+        info!("ダメージテストを実行: {}", test_target.get_id());
+        test_target.take_damage(1);  // 1ダメージ
+        test_target.take_damage(2);  // 最終ダメージで破壊
+    }
+    
+    // 2つ目のターゲットで到達テスト（手動で目的地近くに移動）
+    if targets.len() > 1 {
+        let mut test_target = targets[1].clone();
+        // テスト用にアクティブ状態にする
+        test_target.status = AgentStatus::Active;
+        info!("到達テストを実行: {}", test_target.get_id());
+        // 目的地近くに移動
+        test_target.set_position(ModelPosition3D::new(
+            command_post_pos.x + 10000.0,  // 到達範囲内
+            command_post_pos.y + 10000.0,
+            0.0
+        ));
+        test_target.check_arrival();
+    }
+    
+    // 3つ目のターゲットで領域外テスト
+    if targets.len() > 2 {
+        let mut test_target = targets[2].clone();
+        // テスト用にアクティブ状態にする
+        test_target.status = AgentStatus::Active;
+        info!("領域外テストを実行: {}", test_target.get_id());
+        // 領域外に移動
+        test_target.set_position(ModelPosition3D::new(
+            2_000_000.0,  // 領域外
+            2_000_000.0,
+            0.0
+        ));
+        test_target.check_out_of_bounds();
+    }
+    
+    info!("=== ターゲットイベントログテスト完了 ===");
 }
 
 /// シナリオファイルを読み込んで実行

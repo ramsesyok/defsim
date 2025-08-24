@@ -187,38 +187,53 @@ impl SimulationEngine {
     }
     
     fn initialize_enemy_groups(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // シナリオ設定に定義された全ての敵グループ設定をループ処理
+        // 各グループは独立した配置パターン、出現時刻、パラメータを持つ
         for group_config in &self.scenario_config.enemy_forces.groups {
+            // === グループの配置中心位置を設定 ===
+            // シナリオ設定のXY座標とZ座標から3次元位置を構築
             let group_center = ModelPosition3D::new(
                 group_config.center_xy.x_m,
                 group_config.center_xy.y_m,
                 group_config.z_m,
             );
             
+            // === TargetGroupオブジェクトを構築 ===
+            // グループ全体の配置パターン（同心円リング配置）と動作パラメータを設定
             let target_group = TargetGroup {
-                id: group_config.id.clone(),
-                center_position: group_center,
-                count: group_config.count,
-                ring_spacing: group_config.ring_spacing_m,
-                start_angle: group_config.start_angle_deg,
-                ring_half_offset: group_config.ring_half_offset,
-                endurance: group_config.endurance_pt,
-                spawn_time: group_config.spawn_time_s,
-                speed: group_config.speed_mps,
+                id: group_config.id.clone(),                    // グループ識別子
+                center_position: group_center,                  // 配置中心位置
+                count: group_config.count,                      // グループ内ターゲット数
+                ring_spacing: group_config.ring_spacing_m,     // リング間隔（メートル）
+                start_angle: group_config.start_angle_deg,     // 配置開始角度（度）
+                ring_half_offset: group_config.ring_half_offset, // 外側リングの半角オフセット
+                endurance: group_config.endurance_pt,          // 各ターゲットの耐久値
+                spawn_time: group_config.spawn_time_s,         // グループ出現時刻（秒）
+                speed: group_config.speed_mps,                 // 移動速度（m/s）
+                // 全ターゲットの共通目的地（指揮所位置）
                 destination: ModelPosition3D::new(
                     self.scenario_config.command_post.position.x_m,
                     self.scenario_config.command_post.position.y_m,
-                    0.0
+                    0.0  // 指揮所は地上レベル
                 ),
                 arrival_radius: self.scenario_config.command_post.arrival_radius_m,
             };
             
+            // === グループ内の個別ターゲット生成 ===
+            // TargetGroupの配置アルゴリズムに基づいて個別のTargetインスタンスを生成
+            // 同心円リング配置：中心1個 + 外側リング上に等角度間隔配置
             let targets = target_group.generate_targets();
             
+            // === 生成された各ターゲットの初期化とシミュレーションへの登録 ===
+            // 各ターゲットは個別のID（グループID_T001形式）を持つ
             for mut target in targets {
+                // シナリオ設定に基づいて各ターゲットの詳細パラメータを設定
                 target.initialize(&self.scenario_config);
+                // シミュレーションエンジンのターゲットリストに追加
                 self.targets.push(target);
             }
             
+            // デバッグレベルのログ出力（グループ単位の初期化完了通知）
             if self.verbose_level > 1 {
                 debug!("敵グループ初期化: {} ({}機, 出現時刻: {:.1}秒)", 
                         group_config.id, 
