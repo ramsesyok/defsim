@@ -209,6 +209,100 @@ fn test_agent_models() {
     
     info!("\n全てのエージェントモデルが正常に作成されました！");
     
+    // ミサイルイベントログのテスト
+    info!("=== ミサイルイベントログテスト開始 ===");
+    
+    // テスト用シナリオ設定を作成
+    use scenario::*;
+    let test_scenario = ScenarioConfig {
+        meta: ScenarioMeta {
+            version: "1.0".to_string(),
+            name: "テストシナリオ".to_string(),
+            description: "ミサイルログテスト用".to_string(),
+        },
+        sim: SimulationConfig {
+            dt_s: 0.1,
+            t_max_s: 300.0,
+            seed: 12345,
+        },
+        world: WorldConfig {
+            region_rect: RegionRect {
+                xmin_m: -1_000_000.0,
+                xmax_m: 1_000_000.0,
+                ymin_m: -1_000_000.0,
+                ymax_m: 1_000_000.0,
+            },
+            z_limits_m: [0.0, 5000.0],
+            distance_conventions: DistanceConventions {
+                breakthrough: "XY".to_string(),
+                sensor: "3D".to_string(),
+                launcher_selection: "XY".to_string(),
+                intercept: "3D".to_string(),
+            },
+        },
+        command_post: CommandPostConfig {
+            position: Position2D { x_m: 800000.0, y_m: -800000.0 },
+            arrival_radius_m: 20000.0,
+        },
+        policy: PolicyConfig {
+            tgo_definition: "XY".to_string(),
+            tie_breakers: vec!["distance".to_string()],
+            launcher_selection_order: vec!["closest".to_string()],
+            launcher_initially_cooled: false,
+            angle_reference: AngleReference {
+                zero_deg_axis: "+X".to_string(),
+                rotation: "CCW".to_string(),
+            },
+            missile_guidance: MissileGuidanceConfig {
+                r#type: "PN".to_string(),
+                n: 3.0,
+                endgame_factor: 2.0,
+                endgame_miss_increase_ticks: 3,
+            },
+            missile_kinematics_defaults: MissileKinematics {
+                initial_speed_mps: 100.0,
+                max_speed_mps: 800.0,
+                max_accel_mps2: 50.0,
+                max_turn_rate_deg_s: 180.0,
+                intercept_radius_m: 10.0,
+            },
+        },
+        friendly_forces: FriendlyForcesConfig {
+            deploy_rect_xy: None,
+            sensors: vec![],
+            launchers: vec![],
+        },
+        enemy_forces: EnemyForcesConfig {
+            spawn_rect_xy: RegionRect {
+                xmin_m: -1_000_000.0,
+                xmax_m: 1_000_000.0,
+                ymin_m: -1_000_000.0,
+                ymax_m: 1_000_000.0,
+            },
+            groups: vec![],
+        },
+        missile_defaults: MissileDefaults {
+            kinematics: MissileKinematics {
+                initial_speed_mps: 100.0,
+                max_speed_mps: 800.0,
+                max_accel_mps2: 50.0,
+                max_turn_rate_deg_s: 180.0,
+                intercept_radius_m: 10.0,
+            },
+        },
+    };
+    
+    // ミサイルの初期化テスト（発射ログ）
+    let mut test_missile = Missile::new(
+        "TEST_M001".to_string(),
+        ModelPosition3D::new(780000.0, -850000.0, 20.0),
+        "TEST_T001".to_string(),
+    );
+    info!("ミサイル発射テストを実行: {}", test_missile.get_id());
+    test_missile.initialize(&test_scenario);
+    
+    info!("=== ミサイルイベントログテスト完了 ===");
+    
     // ターゲットイベントログのテスト
     info!("=== ターゲットイベントログテスト開始 ===");
     

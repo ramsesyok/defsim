@@ -2,6 +2,7 @@ use crate::models::{
     traits::{IAgent, IMovable, IMissile, ICollision},
     common::{Position3D, Velocity3D, Acceleration3D, AgentStatus, math_utils},
 };
+use tracing::{info, warn, error, debug, trace};
 
 /// ミサイル誘導フェーズ
 /// 
@@ -286,12 +287,43 @@ impl Missile {
         match self.guidance_phase {
             GuidancePhase::Boost => {
                 if self.flight_time > 2.0 {  // 2秒後にミッドコースへ
+                    let previous_phase = self.guidance_phase;
                     self.guidance_phase = GuidancePhase::Midcourse;
+                    
+                    // フェーズ切替ログ（Boost → Midcourse）
+                    debug!(
+                        missile_id = %self.id,
+                        target_id = %self.target_id,
+                        position_x = self.position.x,
+                        position_y = self.position.y,
+                        position_z = self.position.z,
+                        previous_phase = ?previous_phase,
+                        current_phase = ?self.guidance_phase,
+                        flight_time = self.flight_time,
+                        target_distance = distance,
+                        "MISSILE_PHASE_TRANSITION: ミサイル誘導フェーズが切り替わりました"
+                    );
                 }
             },
             GuidancePhase::Midcourse => {
                 if distance <= self.endgame_threshold {
+                    let previous_phase = self.guidance_phase;
                     self.guidance_phase = GuidancePhase::Endgame;
+                    
+                    // フェーズ切替ログ（Midcourse → Endgame）
+                    debug!(
+                        missile_id = %self.id,
+                        target_id = %self.target_id,
+                        position_x = self.position.x,
+                        position_y = self.position.y,
+                        position_z = self.position.z,
+                        previous_phase = ?previous_phase,
+                        current_phase = ?self.guidance_phase,
+                        flight_time = self.flight_time,
+                        target_distance = distance,
+                        endgame_threshold = self.endgame_threshold,
+                        "MISSILE_PHASE_TRANSITION: ミサイル誘導フェーズが切り替わりました（終盤フェーズへ）"
+                    );
                 }
             },
             GuidancePhase::Endgame => {
@@ -339,6 +371,22 @@ impl Missile {
             if self.miss_increase_count >= self.endgame_miss_increase_ticks {
                 self.status = AgentStatus::SelfDestruct;
                 self.end_reason = Some(MissileEndReason::SelfDestruct);
+                
+                // 自爆ログ
+                warn!(
+                    missile_id = %self.id,
+                    target_id = %self.target_id,
+                    self_destruct_position_x = self.position.x,
+                    self_destruct_position_y = self.position.y,
+                    self_destruct_position_z = self.position.z,
+                    flight_time = self.flight_time,
+                    total_distance = self.total_distance,
+                    miss_distance = current_miss,
+                    miss_increase_count = self.miss_increase_count,
+                    guidance_phase = ?self.guidance_phase,
+                    "MISSILE_SELF_DESTRUCT: ミサイルが自爆しました（miss distance継続増加）"
+                );
+                
                 return true;
             }
         }
@@ -442,6 +490,22 @@ impl Missile {
         if !self.position.is_in_simulation_bounds() {
             self.status = AgentStatus::SelfDestruct;
             self.end_reason = Some(MissileEndReason::OutOfBounds);
+            
+            // 領域外ログ
+            info!(
+                missile_id = %self.id,
+                target_id = %self.target_id,
+                out_of_bounds_position_x = self.position.x,
+                out_of_bounds_position_y = self.position.y,
+                out_of_bounds_position_z = self.position.z,
+                flight_time = self.flight_time,
+                total_distance = self.total_distance,
+                simulation_bounds_x = "±1,000,000m",
+                simulation_bounds_y = "±1,000,000m",
+                simulation_bounds_z = "0-5,000m",
+                "MISSILE_OUT_OF_BOUNDS: ミサイルがシミュレーション領域外に出ました"
+            );
+            
             return;
         }
         
@@ -455,6 +519,22 @@ impl Missile {
         if self.check_collision(target_position) {
             self.status = AgentStatus::Destroyed; // 命中
             self.end_reason = Some(MissileEndReason::Hit);
+            
+            // 命中ログ
+            info!(
+                missile_id = %self.id,
+                target_id = %self.target_id,
+                hit_position_x = self.position.x,
+                hit_position_y = self.position.y,
+                hit_position_z = self.position.z,
+                target_position_x = target_position.x,
+                target_position_y = target_position.y,
+                target_position_z = target_position.z,
+                flight_time = self.flight_time,
+                total_distance = self.total_distance,
+                intercept_distance = self.position.distance_3d(&target_position),
+                "MISSILE_HIT: ミサイルがターゲットに命中しました"
+            );
         }
     }
 }
@@ -489,6 +569,20 @@ impl IAgent for Missile {
         // 初期速度を上方向に設定（発射直後）
         self.velocity = Velocity3D::new(0.0, 0.0, self.initial_speed);
         self.attitude = Attitude3D::from_velocity(&self.velocity);
+        
+        // 発射ログ
+        info!(
+            missile_id = %self.id,
+            target_id = %self.target_id,
+            launch_position_x = self.position.x,
+            launch_position_y = self.position.y,
+            launch_position_z = self.position.z,
+            initial_speed = self.initial_speed,
+            max_speed = self.max_speed,
+            guidance_n = self.guidance_n,
+            intercept_radius = self.intercept_radius,
+            "MISSILE_LAUNCHED: ミサイルが発射されました"
+        );
         
         // 距離測定方式の設定
         let intercept_convention = &scenario_config.world.distance_conventions.intercept;
